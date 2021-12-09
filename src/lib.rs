@@ -47,8 +47,6 @@ mod tests {
 
         
         let bbcf_parsed_hips = bbcf::pac::BBCFPac::parse(BBCF_HIPS_PAC).unwrap().to_bytes();
-
-        std::fs::File::create("BBCF_HIPS.pac").unwrap().write(&bbcf_parsed_hips);
         assert!(bbcf_parsed_hips == BBCF_HIPS_PAC)
     }
 
