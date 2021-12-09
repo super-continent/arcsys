@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use crate::{file_traits::Pac, helpers, Error};
+use crate::{helpers, traits::Pac, Error};
 
 use nom::{bytes::complete::take, combinator, number::complete::le_u32, IResult};
 
@@ -14,6 +14,7 @@ impl Pac for GGSTPac {
     const META_ENTRY_ALIGNMENT: usize = 0x10;
     const META_ENTRY_FIXED_SIZE: usize = 0x10;
     const HEADER_SIZE: usize = 0x20;
+    const EXCESS_PADDING: bool = false;
 
     fn entry_count(&self) -> usize {
         self.files.len()

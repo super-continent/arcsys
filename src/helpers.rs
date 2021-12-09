@@ -7,7 +7,7 @@ use nom::{
     IResult,
 };
 
-use crate::Error;
+use crate::{traits::Palette, Error};
 
 pub fn take_str_of_size(i: &[u8], size: u32) -> IResult<&[u8], &str> {
     let (i, bytes) = take(size)(i)?;
@@ -80,8 +80,41 @@ pub fn needed_to_align_with_excess(size: usize, step: usize) -> usize {
 
 #[inline]
 pub fn slice_consumed(slice: &[u8]) -> Result<(), Error> {
+    // if slice.len() != 0 {
+    //     dbg!(slice);
+    // }
+
     match slice.len() {
         0 => Ok(()),
         _ => Err(Error::Parser("Full slice not consumed".into())),
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub struct RGBAColor {
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
+    pub alpha: u8,
+}
+
+impl RGBAColor {
+    pub fn to_rgba_slice(&self) -> [u8; 4] {
+        [self.red, self.green, self.blue, self.alpha]
+    }
+    pub fn to_argb_slice(&self) -> [u8; 4] {
+        [self.alpha, self.red, self.green, self.blue]
+    }
+}
+
+#[derive(Clone)]
+pub struct IndexedImage {
+    pub palette: Vec<RGBAColor>,
+    pub image: Vec<u8>,
+}
+
+impl Palette for IndexedImage {
+    fn get_palette(&self) -> Vec<RGBAColor> {
+        self.palette.clone()
     }
 }

@@ -1,8 +1,8 @@
 use std::io::Write;
 
 use crate::{
-    file_traits::Pac,
     helpers::{self, pad_to_nearest_with_excess},
+    traits::Pac,
     Error,
 };
 
@@ -13,14 +13,15 @@ pub struct BBCFPac {
     pub files: Vec<BBCFPacEntry>,
 }
 
-impl crate::file_traits::Pac for BBCFPac {
+impl crate::traits::Pac for BBCFPac {
     const DATA_ALIGNMENT: usize = 0x10;
     const META_ENTRY_ALIGNMENT: usize = 0x10;
     const META_ENTRY_FIXED_SIZE: usize = 0xC;
     const HEADER_SIZE: usize = 0x20;
+    const EXCESS_PADDING: bool = true;
 
     fn entry_count(&self) -> usize {
-        self.files.len()
+        dbg!(self.files.len())
     }
 
     fn string_size(&self) -> usize {
@@ -62,6 +63,10 @@ impl BBCFPac {
             Err(e) => Err(Error::Parser(e.to_string())),
         }
     }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        rebuild_pac_impl(self)
+    }
 }
 
 fn parse_pac_impl(i: &[u8]) -> IResult<&[u8], BBCFPac> {
@@ -73,13 +78,16 @@ fn parse_pac_impl(i: &[u8]) -> IResult<&[u8], BBCFPac> {
     let (i, file_count) = combinator::verify(le_u32, |x| *x > 0)(i)?;
     let (i, unknown) = le_u32(i)?;
     let (i, string_size) = le_u32(i)?;
-    //println!("meta done, string size: {}", string_size);
+    //dbg!(string_size);
 
     // padding
     let (i, _) = take(8u8)(i)?;
 
     let (_, entries): (_, Vec<ParsedEntryMeta>) =
         nom::multi::count(|i| parse_entry(i, string_size), file_count as usize)(i)?;
+
+    //dbg!(&entries);
+
     let entry_count = entries.len();
     let mut entry_iter = entries.into_iter();
 
@@ -105,7 +113,7 @@ fn parse_entry(i: &[u8], string_size: u32) -> IResult<&[u8], ParsedEntryMeta> {
     let (i, _offset) = le_u32(i)?;
     let (i, size) = le_u32(i)?;
 
-    let needed_padding = helpers::needed_to_align((string_size + 0xC) as usize, 0x10);
+    let needed_padding = helpers::needed_to_align_with_excess((string_size + 0xC) as usize, 0x10);
 
     let (i, _) = helpers::take_null(i, needed_padding)?;
 
@@ -116,7 +124,7 @@ fn parse_entry(i: &[u8], string_size: u32) -> IResult<&[u8], ParsedEntryMeta> {
     };
     Ok((i, file_entry))
 }
-
+#[derive(Debug)]
 struct ParsedEntryMeta {
     name: String,
     id: u32,
@@ -140,12 +148,6 @@ fn parse_entry_contents(i: &[u8], entry: ParsedEntryMeta) -> IResult<&[u8], BBCF
             contents: file_contents.to_vec(),
         },
     ))
-}
-
-impl BBCFPac {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        rebuild_pac_impl(self)
-    }
 }
 
 fn rebuild_pac_impl(pac: &BBCFPac) -> Vec<u8> {

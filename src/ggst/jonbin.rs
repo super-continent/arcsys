@@ -7,7 +7,7 @@ use nom::{
     IResult,
 };
 
-use crate::{file_traits::JonBin, helpers, Error};
+use crate::{helpers, traits::JonBin, Error};
 
 #[derive(Debug)]
 pub struct GGSTJonBin {
@@ -78,10 +78,13 @@ fn parse_jonbin_impl(i: &[u8]) -> IResult<&[u8], GGSTJonBin> {
     let (i, hitboxes) = count(parse_box, hitbox_count as usize)(i)?;
 
     let unkbox_count = unk_boxes_header.len();
-    let (i, unk_boxes) = count(|i| {
-        let (i, hitboxes) = count(parse_box, unk_boxes_header.remove(0) as usize)(i)?;
-        Ok((i, hitboxes))
-    }, unkbox_count)(i)?;
+    let (i, unk_boxes) = count(
+        |i| {
+            let (i, hitboxes) = count(parse_box, unk_boxes_header.remove(0) as usize)(i)?;
+            Ok((i, hitboxes))
+        },
+        unkbox_count,
+    )(i)?;
 
     let jonbin = GGSTJonBin {
         names: names.into_iter().map(|n| n.to_string()).collect(),
@@ -172,7 +175,9 @@ impl GGSTJonBin {
             .unwrap();
         rebuilt.write_u16::<LE>(self.hitboxes.len() as u16).unwrap();
 
-        self.unk_boxes.iter().for_each(|boxes| rebuilt.write_u16::<LE>(boxes.len() as u16).unwrap());
+        self.unk_boxes
+            .iter()
+            .for_each(|boxes| rebuilt.write_u16::<LE>(boxes.len() as u16).unwrap());
 
         self.editor_data
             .iter()
@@ -185,7 +190,7 @@ impl GGSTJonBin {
             rebuilt.write_f32::<LE>(hitbox.rect.width).unwrap();
             rebuilt.write_f32::<LE>(hitbox.rect.height).unwrap();
         };
-        
+
         self.hurtboxes.iter().for_each(&mut write_hitbox);
         self.hitboxes.iter().for_each(&mut write_hitbox);
 
