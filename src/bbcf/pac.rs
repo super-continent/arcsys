@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::io::Write;
 
 use crate::{
@@ -23,7 +23,7 @@ impl crate::traits::Pac for BBCFPac {
     const EXCESS_PADDING: bool = true;
 
     fn entry_count(&self) -> usize {
-        dbg!(self.files.len())
+        self.files.len()
     }
 
     fn string_size(&self) -> usize {
@@ -57,7 +57,21 @@ pub struct BBCFPacEntry {
 
 impl BBCFPac {
     pub fn parse(input: &[u8]) -> Result<Self, Error> {
-        let res = self::parse_pac_impl(input);
+        // detect a DFASFPAC file and decompress it, then parse if possible
+        let mut res = parse_pac_impl(input);
+
+        // using a variable here to move the decompressed data out of the `and_then` scope
+        let mut decompressed_stored = Vec::new();
+        if res.is_err() {
+            let compressed_res = decompress_pac(input).and_then(|(_, decompressed)| {
+                decompressed_stored = decompressed;
+                parse_pac_impl(&decompressed_stored)
+            });
+
+            if compressed_res.is_ok() {
+                res = compressed_res;
+            }
+        }
 
         match res {
             Ok((i, pac)) => {
@@ -71,11 +85,52 @@ impl BBCFPac {
     pub fn to_bytes(&self) -> Vec<u8> {
         rebuild_pac_impl(self)
     }
+
+    pub fn to_bytes_compressed(&self) -> Vec<u8> {
+        use flate2::write::ZlibEncoder;
+        use byteorder::{LE, WriteBytesExt};
+
+        let mut compressed_file = Vec::new();
+        
+        let mut rebuilt_pac = rebuild_pac_impl(self);
+        
+        let uncompressed_size = rebuilt_pac.len();
+        let mut encoder = ZlibEncoder::new(Vec::new(), flate2::Compression::best());
+        
+        encoder.write_all(&mut rebuilt_pac).unwrap();
+        
+        let compressed = encoder.finish().unwrap();
+        
+        compressed_file.extend(b"DFASFPAC");
+        compressed_file.write_u32::<LE>(uncompressed_size as u32).unwrap();
+        compressed_file.write_u32::<LE>(compressed.len() as u32).unwrap();
+
+        compressed_file.extend(compressed);
+
+        compressed_file
+    }
+}
+
+fn decompress_pac(i: &[u8]) -> IResult<&[u8], Vec<u8>> {
+    use std::io::Read;
+
+    let (i, _) = nom::bytes::complete::tag(b"DFASFPAC")(i)?;
+    let (i, _uncompressed_size) = le_u32(i)?;
+    let (i, _compressed_size) = le_u32(i)?;
+
+    let mut buf = Vec::new();
+    let mut decoder = flate2::read::ZlibDecoder::new(i);
+    decoder
+        .read_to_end(&mut buf)
+        .map_err(|_| nom::Err::Failure(nom::error::Error::new(i, nom::error::ErrorKind::Fail)))?;
+
+    Ok((i, buf))
 }
 
 fn parse_pac_impl(i: &[u8]) -> IResult<&[u8], BBCFPac> {
     let original_input = <&[u8]>::clone(&i);
-    let (i, _) = nom::bytes::complete::tag(b"FPAC")(i)?;
+
+    let (i, _) = nom::bytes::complete::tag(BBCFPac::MAGIC_FPAC)(i)?;
 
     let (i, data_start) = le_u32(i)?;
     let (i, _total_size) = le_u32(i)?;

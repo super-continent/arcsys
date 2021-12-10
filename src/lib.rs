@@ -20,7 +20,7 @@ mod tests {
     static BBCF_JONBINS_PAC: &[u8] = include_bytes!("../test_files/bbcf_jonbins.pac");
 
     // PAC files that contain HIP (image) files
-    static BBCF_HIPS_PAC: &[u8] = include_bytes!("../test_files/bbcf_hips.pac");
+    static BBCF_COMPRESSED_HIPS_PAC: &[u8] = include_bytes!("../test_files/char_jb_img.pac");
 
     #[test]
     fn test_pac() {
@@ -45,9 +45,16 @@ mod tests {
         let ggst_bytes = ggst_parsed.unwrap().to_bytes();
         assert_eq!(ggst_bytes, GGST_JONBINS_PAC);
 
+    // re-encode a characters sprites, for testing possible visual information corruption
+    //     let mut bbcf_parsed_hips = bbcf::pac::BBCFPac::parse(BBCF_COMPRESSED_HIPS_PAC).unwrap();
         
-        let bbcf_parsed_hips = bbcf::pac::BBCFPac::parse(BBCF_HIPS_PAC).unwrap().to_bytes();
-        assert!(bbcf_parsed_hips == BBCF_HIPS_PAC)
+    //     for sprite in &mut bbcf_parsed_hips.files {
+    //         let reencoded = bbcf::hip::BBCFHip::parse(&sprite.contents).unwrap().to_bytes();
+
+    //         sprite.contents = reencoded;
+    //     }
+
+    //     std::fs::File::create("./compressed_bytes.pac").unwrap().write(&bbcf_parsed_hips.to_bytes_compressed());
     }
 
     #[test]
@@ -78,7 +85,7 @@ mod tests {
         // HIP file using raw ARGB
         let raw_image_hip = include_bytes!("../test_files/bbcf_raw_image.hip");
 
-        let parsed = bbcf::pac::BBCFPac::parse(BBCF_HIPS_PAC).unwrap();
+        let parsed = bbcf::pac::BBCFPac::parse(BBCF_COMPRESSED_HIPS_PAC).unwrap();
 
         let parsed_hip = bbcf::hip::BBCFHip::parse(raw_image_hip);
         if let Err(ref e) = parsed_hip {
@@ -88,25 +95,21 @@ mod tests {
 
 
         // Iterate through all the hips contained in the pac
-        // for entry in &parsed.files {
-        //     //eprintln!("parsing: {}", entry.name);
-        //     let parsed_hip = bbcf::hip::BBCFHip::parse(&entry.contents);
+        for entry in &parsed.files {
+            //eprintln!("parsing: {}", entry.name);
+            let parsed_hip = bbcf::hip::BBCFHip::parse(&entry.contents);
 
-        //     if let Err(ref e) = parsed_hip {
-        //         dbg!(&entry.name);
-        //         eprintln!("{}", e);
-        //     }
+            if let Err(ref e) = parsed_hip {
+                dbg!(&entry.name);
+                eprintln!("{}", e);
+            }
 
-        //     assert!(parsed_hip.is_ok());
-        // }
+            assert!(parsed_hip.is_ok());
+        }
         
         let palette_image = &parsed.files[0];
 
         let hip = bbcf::hip::BBCFHip::parse(&palette_image.contents).unwrap();
         let bytes = hip.to_bytes();
-
-        assert_eq!(bytes, palette_image.contents);
-
-        //std::fs::File::create("../BYTES").unwrap().write(&bytes);
     }
 }
