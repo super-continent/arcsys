@@ -12,7 +12,7 @@ pub use helpers::{IndexedImage, RGBAColor};
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
+    //use std::io::Write;
 
     // This requires you to place your own pac files taken from the games into a test_files folder
 
@@ -107,9 +107,9 @@ mod tests {
             assert!(parsed_hip.is_ok());
         }
 
-        let palette_image = &parsed.files[0];
+        //let palette_image = &parsed.files[0];
 
-        let hip = bbcf::hip::BBCFHip::parse(&palette_image.contents).unwrap();
-        let bytes = hip.to_bytes();
+        //let hip = bbcf::hip::BBCFHip::parse(&palette_image.contents).unwrap();
+        //let bytes = hip.to_bytes();
     }
 }
