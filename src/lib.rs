@@ -7,6 +7,7 @@ mod traits;
 pub mod bbcf;
 pub mod ggst;
 
+pub use helpers::{RGBAColor, IndexedImage};
 pub use error::Error;
 
 #[cfg(test)]
