@@ -7,8 +7,8 @@ mod traits;
 pub mod bbcf;
 pub mod ggst;
 
-pub use helpers::{RGBAColor, IndexedImage};
 pub use error::Error;
+pub use helpers::{IndexedImage, RGBAColor};
 
 #[cfg(test)]
 mod tests {
@@ -46,16 +46,16 @@ mod tests {
         let ggst_bytes = ggst_parsed.unwrap().to_bytes();
         assert_eq!(ggst_bytes, GGST_JONBINS_PAC);
 
-    // re-encode a characters sprites, for testing possible visual information corruption
-    //     let mut bbcf_parsed_hips = bbcf::pac::BBCFPac::parse(BBCF_COMPRESSED_HIPS_PAC).unwrap();
-        
-    //     for sprite in &mut bbcf_parsed_hips.files {
-    //         let reencoded = bbcf::hip::BBCFHip::parse(&sprite.contents).unwrap().to_bytes();
+        // re-encode a characters sprites, for testing possible visual information corruption
+        //     let mut bbcf_parsed_hips = bbcf::pac::BBCFPac::parse(BBCF_COMPRESSED_HIPS_PAC).unwrap();
 
-    //         sprite.contents = reencoded;
-    //     }
+        //     for sprite in &mut bbcf_parsed_hips.files {
+        //         let reencoded = bbcf::hip::BBCFHip::parse(&sprite.contents).unwrap().to_bytes();
 
-    //     std::fs::File::create("./compressed_bytes.pac").unwrap().write(&bbcf_parsed_hips.to_bytes_compressed());
+        //         sprite.contents = reencoded;
+        //     }
+
+        //     std::fs::File::create("./compressed_bytes.pac").unwrap().write(&bbcf_parsed_hips.to_bytes_compressed());
     }
 
     #[test]
@@ -94,7 +94,6 @@ mod tests {
         }
         assert!(parsed_hip.is_ok());
 
-
         // Iterate through all the hips contained in the pac
         for entry in &parsed.files {
             //eprintln!("parsing: {}", entry.name);
@@ -107,7 +106,7 @@ mod tests {
 
             assert!(parsed_hip.is_ok());
         }
-        
+
         let palette_image = &parsed.files[0];
 
         let hip = bbcf::hip::BBCFHip::parse(&palette_image.contents).unwrap();

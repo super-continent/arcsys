@@ -92,23 +92,27 @@ impl BBCFPac {
     }
 
     pub fn to_bytes_compressed(&self) -> Vec<u8> {
+        use byteorder::{WriteBytesExt, LE};
         use flate2::write::ZlibEncoder;
-        use byteorder::{LE, WriteBytesExt};
 
         let mut compressed_file = Vec::new();
-        
+
         let mut rebuilt_pac = rebuild_pac_impl(self);
-        
+
         let uncompressed_size = rebuilt_pac.len();
         let mut encoder = ZlibEncoder::new(Vec::new(), flate2::Compression::best());
-        
+
         encoder.write_all(&mut rebuilt_pac).unwrap();
-        
+
         let compressed = encoder.finish().unwrap();
-        
+
         compressed_file.extend(b"DFASFPAC");
-        compressed_file.write_u32::<LE>(uncompressed_size as u32).unwrap();
-        compressed_file.write_u32::<LE>(compressed.len() as u32).unwrap();
+        compressed_file
+            .write_u32::<LE>(uncompressed_size as u32)
+            .unwrap();
+        compressed_file
+            .write_u32::<LE>(compressed.len() as u32)
+            .unwrap();
 
         compressed_file.extend(compressed);
 

@@ -6,7 +6,7 @@ use nom::{
     number::complete::{le_f32, le_u16, le_u32, le_u8},
     IResult,
 };
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::{helpers, traits::JonBin, Error};
 

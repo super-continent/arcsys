@@ -2,16 +2,17 @@ use std::io::Write;
 
 use crate::{
     helpers::{self, IndexedImage, RGBAColor},
-    Error, traits::Palette,
+    traits::Palette,
+    Error,
 };
 
+use byteorder::{WriteBytesExt, LE};
 use nom::{
     bytes::complete::tag,
     number::complete::{le_u32, le_u8},
     IResult,
 };
-use byteorder::{LE, WriteBytesExt};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// A contained buffer of pixel (and possibly palette) data
 /// stored within a [`BBCFHip`]
@@ -216,7 +217,6 @@ fn parse_index_run(i: &[u8]) -> IResult<&[u8], Vec<u8>> {
     Ok((i, run))
 }
 
-
 // rebuilding
 const HEADER_SIZE: u32 = 0x40;
 
@@ -248,12 +248,14 @@ impl BBCFHip {
 
         // magic
         final_bytes.write(b"HIP\0").unwrap();
-        
+
         // version
         final_bytes.write_u32::<LE>(self.version).unwrap();
 
         // file size
-        final_bytes.write_u32::<LE>(HEADER_SIZE + image_bytes.len() as u32).unwrap();
+        final_bytes
+            .write_u32::<LE>(HEADER_SIZE + image_bytes.len() as u32)
+            .unwrap();
 
         // palette size
         let palette_size = if let BBCFHipImage::Indexed(i) = &self.image_data {
@@ -308,18 +310,18 @@ fn indexed_to_run_encoded(indexed: IndexedImage) -> Vec<u8> {
             final_image.push(run_length);
 
             run_length = 0;
-            continue
+            continue;
         }
 
         if let Some(next) = indexes.peek() {
             if i == *next {
-                continue
+                continue;
             } else {
                 final_image.push(i);
                 final_image.push(run_length);
 
                 run_length = 0;
-                continue
+                continue;
             }
         } else {
             final_image.push(i);
@@ -343,18 +345,18 @@ fn raw_to_run_encoded(raw: Vec<RGBAColor>) -> Vec<u8> {
             final_image.push(run_length);
 
             run_length = 0;
-            continue
+            continue;
         }
 
         if let Some(next) = indexes.peek() {
             if i == *next {
-                continue
+                continue;
             } else {
                 final_image.extend(i.to_argb_slice());
                 final_image.push(run_length);
 
                 run_length = 0;
-                continue
+                continue;
             }
         } else {
             final_image.extend(i.to_argb_slice());

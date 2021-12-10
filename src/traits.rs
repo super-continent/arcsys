@@ -1,4 +1,4 @@
-use crate::helpers::{pad_to_nearest, RGBAColor, pad_to_nearest_with_excess};
+use crate::helpers::{pad_to_nearest, pad_to_nearest_with_excess, RGBAColor};
 
 pub(crate) trait Pac {
     const MAGIC_FPAC: &'static [u8; 4] = b"FPAC";
@@ -24,8 +24,7 @@ pub(crate) trait Pac {
     /// Total size of the file entry metadata
     fn entry_section_size(&self) -> usize {
         let entry_size_unaligned = Self::META_ENTRY_FIXED_SIZE + self.string_size();
-        let entry_size = 
-        if Self::EXCESS_PADDING {
+        let entry_size = if Self::EXCESS_PADDING {
             pad_to_nearest_with_excess(entry_size_unaligned, Self::META_ENTRY_ALIGNMENT)
         } else {
             pad_to_nearest(entry_size_unaligned, Self::META_ENTRY_ALIGNMENT)

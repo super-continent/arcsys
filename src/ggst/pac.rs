@@ -3,7 +3,7 @@ use std::io::Write;
 use crate::{helpers, traits::Pac, Error};
 
 use nom::{bytes::complete::take, combinator, number::complete::le_u32, IResult};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct GGSTPac {
