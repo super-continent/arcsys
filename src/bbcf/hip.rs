@@ -13,12 +13,16 @@ use nom::{
 use byteorder::{LE, WriteBytesExt};
 use serde::{Serialize, Deserialize};
 
+/// A contained buffer of pixel (and possibly palette) data
+/// stored within a [`BBCFHip`]
 #[derive(Clone, Serialize, Deserialize)]
 pub enum BBCFHipImage {
     Indexed(IndexedImage),
+    /// A raw RGBA image
     Raw(Vec<RGBAColor>),
 }
 
+/// The sprite format used in Blazblue Centralfiction
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BBCFHip {
     pub version: u32,

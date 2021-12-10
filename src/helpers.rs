@@ -108,6 +108,8 @@ impl RGBAColor {
     }
 }
 
+/// A palette-indexed image, each palette is an array of up to 256 RGBA colors,
+/// with an image consisting of u8 indexes to the palette.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct IndexedImage {
     pub palette: Vec<RGBAColor>,

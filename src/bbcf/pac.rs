@@ -9,6 +9,7 @@ use crate::{
 
 use nom::{bytes::complete::take, combinator, number::complete::le_u32, IResult};
 
+/// Archive format for BBCF
 #[derive(Serialize, Deserialize)]
 pub struct BBCFPac {
     pub unknown: u32,
@@ -47,10 +48,14 @@ impl crate::traits::Pac for BBCFPac {
     }
 }
 
+/// A contained file in a [`BBCFPac`] archive.
 #[derive(Serialize, Deserialize)]
 pub struct BBCFPacEntry {
+    /// The file ID
     pub id: u32,
+    /// The files name
     pub name: String,
+    /// The bytes of the contained file
     #[serde(skip)]
     pub contents: Vec<u8>,
 }
