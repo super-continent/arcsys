@@ -6,6 +6,7 @@ use nom::{
     number::complete::le_u8,
     IResult,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{traits::Palette, Error};
 
@@ -90,7 +91,7 @@ pub fn slice_consumed(slice: &[u8]) -> Result<(), Error> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct RGBAColor {
     pub red: u8,
     pub green: u8,
@@ -107,7 +108,7 @@ impl RGBAColor {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct IndexedImage {
     pub palette: Vec<RGBAColor>,
     pub image: Vec<u8>,

@@ -1,3 +1,4 @@
+use serde::{Serialize, Deserialize};
 use std::io::Write;
 
 use crate::{
@@ -8,6 +9,7 @@ use crate::{
 
 use nom::{bytes::complete::take, combinator, number::complete::le_u32, IResult};
 
+#[derive(Serialize, Deserialize)]
 pub struct BBCFPac {
     pub unknown: u32,
     pub files: Vec<BBCFPacEntry>,
@@ -45,9 +47,11 @@ impl crate::traits::Pac for BBCFPac {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct BBCFPacEntry {
     pub id: u32,
     pub name: String,
+    #[serde(skip)]
     pub contents: Vec<u8>,
 }
 

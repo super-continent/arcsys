@@ -3,7 +3,9 @@ use std::io::Write;
 use crate::{helpers, traits::Pac, Error};
 
 use nom::{bytes::complete::take, combinator, number::complete::le_u32, IResult};
+use serde::{Serialize, Deserialize};
 
+#[derive(Serialize, Deserialize)]
 pub struct GGSTPac {
     pub unknown: u32,
     pub files: Vec<GGSTPacEntry>,
@@ -41,10 +43,12 @@ impl Pac for GGSTPac {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct GGSTPacEntry {
     pub unknown: u32,
     pub id: u32,
     pub name: String,
+    #[serde(skip)]
     pub contents: Vec<u8>,
 }
 

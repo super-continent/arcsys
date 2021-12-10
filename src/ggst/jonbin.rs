@@ -6,6 +6,7 @@ use nom::{
     number::complete::{le_f32, le_u16, le_u32, le_u8},
     IResult,
 };
+use serde::{Serialize, Deserialize};
 
 use crate::{helpers, traits::JonBin, Error};
 
@@ -34,13 +35,13 @@ impl GGSTJonBin {
 
 impl JonBin for GGSTJonBin {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HitBox {
     pub kind: u32,
     pub rect: Rect,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Rect {
     x_offset: f32,
     y_offset: f32,

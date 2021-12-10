@@ -11,14 +11,15 @@ use nom::{
     IResult,
 };
 use byteorder::{LE, WriteBytesExt};
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum BBCFHipImage {
     Indexed(IndexedImage),
     Raw(Vec<RGBAColor>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct BBCFHip {
     pub version: u32,
     pub unk_width: u32,
