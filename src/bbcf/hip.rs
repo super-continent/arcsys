@@ -16,11 +16,61 @@ use serde::{Deserialize, Serialize};
 
 /// A contained buffer of pixel (and possibly palette) data
 /// stored within a [`BBCFHip`]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 pub enum BBCFHipImage {
-    Indexed(IndexedImage),
+    Indexed {
+        width: u32,
+        height: u32,
+        data: IndexedImage,
+    },
     /// A raw RGBA image
-    Raw(Vec<RGBAColor>),
+    Raw {
+        width: u32,
+        height: u32,
+        data: Vec<RGBAColor>,
+    },
+}
+
+impl BBCFHipImage {
+    pub fn width(&self) -> u32 {
+        match self {
+            BBCFHipImage::Indexed {
+                width,
+                height: _,
+                data: _,
+            } => *width,
+            BBCFHipImage::Raw {
+                width,
+                height: _,
+                data: _,
+            } => *width,
+        }
+    }
+
+    pub fn height(&self) -> u32 {
+        match self {
+            BBCFHipImage::Indexed {
+                width: _,
+                height,
+                data: _,
+            } => *height,
+            BBCFHipImage::Raw {
+                width: _,
+                height,
+                data: _,
+            } => *height,
+        }
+    }
+}
+
+impl Default for BBCFHipImage {
+    fn default() -> Self {
+        Self::Raw {
+            width: 0,
+            height: 0,
+            data: Vec::new(),
+        }
+    }
 }
 
 /// The sprite format used in Blazblue Centralfiction
@@ -31,11 +81,10 @@ pub struct BBCFHip {
     pub unk_height: u32,
     pub unknown: u32,
     pub unknown_2: u32,
-    pub image_width: u32,
-    pub image_height: u32,
     pub x_offset: u32,
     pub y_offset: u32,
-    pub image_data: BBCFHipImage,
+    #[serde(skip)]
+    pub image: BBCFHipImage,
 }
 
 impl BBCFHip {
@@ -105,11 +154,9 @@ fn parse_hip_impl(i: &[u8]) -> IResult<&[u8], BBCFHip> {
         unk_height: unk_h,
         unknown: unk,
         unknown_2: unk2,
-        image_width: width,
-        image_height: height,
         x_offset,
         y_offset,
-        image_data,
+        image: image_data,
     };
 
     Ok((i, image))
@@ -124,7 +171,11 @@ fn parse_indexed_image(
     let (i, palette) = parse_palette(i, palette_length)?;
     let (i, image) = parse_index_runs(i, width, height)?;
 
-    let indexed_image = BBCFHipImage::Indexed(IndexedImage { palette, image });
+    let indexed_image = BBCFHipImage::Indexed {
+        width,
+        height,
+        data: IndexedImage { palette, image },
+    };
 
     Ok((i, indexed_image))
 }
@@ -143,7 +194,11 @@ fn parse_raw_image(mut i: &[u8], width: u32, height: u32) -> IResult<&[u8], BBCF
         i = scoped_i;
     }
 
-    let image = BBCFHipImage::Raw(image_content);
+    let image = BBCFHipImage::Raw {
+        width,
+        height,
+        data: image_content,
+    };
 
     Ok((i, image))
 }
@@ -222,9 +277,17 @@ const HEADER_SIZE: u32 = 0x40;
 
 impl BBCFHip {
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut image_bytes = match self.image_data.clone() {
-            BBCFHipImage::Indexed(indexed) => indexed_to_run_encoded(indexed),
-            BBCFHipImage::Raw(raw) => raw_to_run_encoded(raw),
+        let mut image_bytes = match self.image.clone() {
+            BBCFHipImage::Indexed {
+                width: _,
+                height: _,
+                data: indexed,
+            } => indexed_to_run_encoded(indexed),
+            BBCFHipImage::Raw {
+                width: _,
+                height: _,
+                data: raw,
+            } => raw_to_run_encoded(raw),
         };
 
         let mut final_bytes = Vec::new();
@@ -258,7 +321,12 @@ impl BBCFHip {
             .unwrap();
 
         // palette size
-        let palette_size = if let BBCFHipImage::Indexed(i) = &self.image_data {
+        let palette_size = if let BBCFHipImage::Indexed {
+            width: _,
+            height: _,
+            data: i,
+        } = &self.image
+        {
             i.palette.len()
         } else {
             0
@@ -274,8 +342,12 @@ impl BBCFHip {
         final_bytes.write_u32::<LE>(self.unknown_2).unwrap();
 
         // image width and height
-        final_bytes.write_u32::<LE>(self.image_width).unwrap();
-        final_bytes.write_u32::<LE>(self.image_height).unwrap();
+        final_bytes
+            .write_u32::<LE>(self.image.width())
+            .unwrap();
+        final_bytes
+            .write_u32::<LE>(self.image.height())
+            .unwrap();
 
         // offsets
         final_bytes.write_u32::<LE>(self.x_offset).unwrap();
