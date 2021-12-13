@@ -83,7 +83,7 @@ impl BBCFPac {
                 helpers::slice_consumed(i)?;
                 Ok(pac)
             }
-            Err(e) => Err(Error::Parser(e.to_string())),
+            Err(e) => Err(Error::Parser(e.map_input(|_| &[0; 0]).to_string())),
         }
     }
 
@@ -146,6 +146,7 @@ fn parse_pac_impl(i: &[u8]) -> IResult<&[u8], BBCFPac> {
     let (i, file_count) = combinator::verify(le_u32, |x| *x > 0)(i)?;
     let (i, unknown) = le_u32(i)?;
     let (i, string_size) = le_u32(i)?;
+    //dbg!(file_count);
     //dbg!(string_size);
 
     // padding

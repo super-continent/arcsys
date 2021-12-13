@@ -1,7 +1,7 @@
 use nom::{
     bytes::complete::take,
     bytes::complete::take_until,
-    combinator::{map_res, verify},
+    combinator::{map, verify},
     multi,
     number::complete::le_u8,
     IResult,
@@ -10,11 +10,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::{traits::Palette, Error};
 
-pub fn take_str_of_size(i: &[u8], size: u32) -> IResult<&[u8], &str> {
+pub fn take_str_of_size(i: &[u8], size: u32) -> IResult<&[u8], String> {
     let (i, bytes) = take(size)(i)?;
-    let (_, parsed_string) = map_res(take_until("\0"), std::str::from_utf8)(bytes)?;
+    let (_, parsed_string) = map(take_until("\0"), lossy_to_str)(bytes)?;
 
     Ok((i, parsed_string))
+}
+
+// arcsys put evil invalid unicode in their filenames so now i need to do this
+fn lossy_to_str(i: &[u8]) -> String {
+    String::from_utf8_lossy(i).to_string()
 }
 
 /// Takes padding and verifies that all bytes taken are null/0x00
