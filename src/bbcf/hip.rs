@@ -16,17 +16,23 @@ use serde::{Deserialize, Serialize};
 
 /// A contained buffer of pixel (and possibly palette) data
 /// stored within a [`BBCFHip`]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum BBCFHipImage {
     Indexed {
+        #[serde(skip)]
         width: u32,
+        #[serde(skip)]
         height: u32,
+        #[serde(skip)]
         data: IndexedImage,
     },
     /// A raw RGBA image
     Raw {
+        #[serde(skip)]
         width: u32,
+        #[serde(skip)]
         height: u32,
+        #[serde(skip)]
         data: Vec<RGBAColor>,
     },
 }
@@ -63,16 +69,6 @@ impl BBCFHipImage {
     }
 }
 
-impl Default for BBCFHipImage {
-    fn default() -> Self {
-        Self::Raw {
-            width: 0,
-            height: 0,
-            data: Vec::new(),
-        }
-    }
-}
-
 /// The sprite format used in Blazblue Centralfiction
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BBCFHip {
@@ -83,7 +79,6 @@ pub struct BBCFHip {
     pub unknown_2: u32,
     pub x_offset: u32,
     pub y_offset: u32,
-    #[serde(skip)]
     pub image: BBCFHipImage,
 }
 
@@ -185,7 +180,7 @@ fn parse_raw_image(mut i: &[u8], width: u32, height: u32) -> IResult<&[u8], BBCF
     let mut image_content = Vec::new();
 
     while image_content.len() != len as usize {
-        let (scoped_i, color) = parse_argb(i)?;
+        let (scoped_i, color) = helpers::parse_argb(i)?;
         let (scoped_i, run) = le_u8(scoped_i)?;
 
         let it = (0..run).map(|_| color);
@@ -207,46 +202,12 @@ fn parse_palette(i: &[u8], palette_length: u32) -> IResult<&[u8], Vec<RGBAColor>
     let mut palette = Vec::new();
 
     let i = (0..palette_length).try_fold(i, |i, _| {
-        let (i, palette_entry) = parse_rgba(i)?;
+        let (i, palette_entry) = helpers::parse_rgba(i)?;
         palette.push(palette_entry);
         Ok(i)
     })?;
 
     Ok((i, palette))
-}
-
-fn parse_rgba(i: &[u8]) -> IResult<&[u8], RGBAColor> {
-    let (i, red) = le_u8(i)?;
-    let (i, green) = le_u8(i)?;
-    let (i, blue) = le_u8(i)?;
-    let (i, alpha) = le_u8(i)?;
-
-    return Ok((
-        i,
-        RGBAColor {
-            red,
-            green,
-            blue,
-            alpha,
-        },
-    ));
-}
-
-fn parse_argb(i: &[u8]) -> IResult<&[u8], RGBAColor> {
-    let (i, alpha) = le_u8(i)?;
-    let (i, red) = le_u8(i)?;
-    let (i, green) = le_u8(i)?;
-    let (i, blue) = le_u8(i)?;
-
-    return Ok((
-        i,
-        RGBAColor {
-            red,
-            green,
-            blue,
-            alpha,
-        },
-    ));
 }
 
 fn parse_index_runs(mut i: &[u8], width: u32, height: u32) -> IResult<&[u8], Vec<u8>> {
