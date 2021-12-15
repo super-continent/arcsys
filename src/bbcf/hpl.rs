@@ -6,9 +6,11 @@ use nom::bytes::complete::tag;
 use nom::number::complete::le_u16;
 use nom::number::complete::le_u32;
 use nom::IResult;
+use serde::{Serialize, Deserialize};
 
 static MAGIC_HPL: &[u8] = b"HPAL";
 
+#[derive(Serialize, Deserialize)]
 pub struct BBCFHpl {
     pub version: u32,
     pub unknown_data: (u32, u32, u16, u16),
