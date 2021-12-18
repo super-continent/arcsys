@@ -8,7 +8,7 @@ use crate::{
 
 use byteorder::{WriteBytesExt, LE};
 use nom::{
-    bytes::complete::tag,
+    bytes::complete::{tag, take},
     number::complete::{le_u32, le_u8},
     IResult,
 };
@@ -73,13 +73,27 @@ impl BBCFHipImage {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BBCFHip {
     pub version: u32,
-    pub unk_width: u32,
-    pub unk_height: u32,
+    /// The full width and full height don't necessarily indicate
+    /// actual image dimensions, they seem to be used to indicate texture
+    /// size, and the extra header data added on is used to indicate actual
+    /// dimensions for processing the image data
+    pub texture_dimensions: (u32, u32),
     pub unknown: u32,
-    pub unknown_2: u32,
+    pub extra_header_data: Option<BBCFHipExtra>,
+    pub image: BBCFHipImage,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct BBCFHipExtra {
     pub x_offset: u32,
     pub y_offset: u32,
-    pub image: BBCFHipImage,
+    pub extra: Vec<u8>,
+}
+
+impl BBCFHipExtra {
+    pub fn size(&self) -> u32 {
+        0x10 + self.extra.len() as u32
+    }
 }
 
 impl BBCFHip {
@@ -100,7 +114,7 @@ fn parse_hip_impl(i: &[u8]) -> IResult<&[u8], BBCFHip> {
     let (i, _) = tag("HIP\0")(i)?;
 
     // cant tell if this is the version but it seems consistent across all HIPs
-    let (i, maybe_version) = le_u32(i)?;
+    let (i, version) = le_u32(i)?;
     //dbg!(maybe_version);
 
     let (i, _file_size) = le_u32(i)?;
@@ -109,26 +123,43 @@ fn parse_hip_impl(i: &[u8]) -> IResult<&[u8], BBCFHip> {
     let (i, palette_size) = le_u32(i)?;
     //dbg!(palette_size);
 
-    let (i, unk_w) = le_u32(i)?;
-    let (i, unk_h) = le_u32(i)?;
+    let (i, texture_w) = le_u32(i)?;
+    let (i, texture_h) = le_u32(i)?;
 
     //dbg!(unk_w, unk_h);
 
     let (i, unk) = le_u32(i)?;
-    let (i, unk2) = le_u32(i)?;
+    let (i, extra_header_size) = le_u32(i)?;
 
-    let (i, width) = le_u32(i)?;
-    let (i, height) = le_u32(i)?;
+    let mut image_data_w = texture_w;
+    let mut image_data_h = texture_h;
 
-    //dbg!(crop_w, crop_h);
+    let (i, extra_header_data) = if extra_header_size >= 0x10 {
+        let (i, width) = le_u32(i)?;
+        let (i, height) = le_u32(i)?;
 
-    let (i, x_offset) = le_u32(i)?;
-    let (i, y_offset) = le_u32(i)?;
+        image_data_w = width;
+        image_data_h = height;
+
+        let (i, x_offset) = le_u32(i)?;
+        let (i, y_offset) = le_u32(i)?;
+        let (i, other) = take(extra_header_size - 0x10)(i)?;
+
+        let extra_header = BBCFHipExtra {
+            x_offset,
+            y_offset,
+            extra: other.to_vec(),
+        };
+
+        (i, Some(extra_header))
+    } else {
+        (i, None)
+    };
 
     let (i, _padding) = nom::bytes::complete::take(0x10usize)(i)?;
 
     let (i, image_data) = if palette_size > 0 {
-        let (i, img) = parse_indexed_image(i, palette_size, width, height)?;
+        let (i, img) = parse_indexed_image(i, palette_size, image_data_w, image_data_h)?;
 
         // hack to deal with a couple image files having 2 null bytes at the end
         // not sure why they do that but otherwise it will throw an error from the slice not fully consumed
@@ -140,17 +171,14 @@ fn parse_hip_impl(i: &[u8]) -> IResult<&[u8], BBCFHip> {
 
         (i, img)
     } else {
-        parse_raw_image(i, width, height)?
+        parse_raw_image(i, image_data_w, image_data_h)?
     };
 
     let image = BBCFHip {
-        version: maybe_version,
-        unk_width: unk_w,
-        unk_height: unk_h,
+        version,
+        texture_dimensions: (texture_w, texture_h),
         unknown: unk,
-        unknown_2: unk2,
-        x_offset,
-        y_offset,
+        extra_header_data,
         image: image_data,
     };
 
@@ -234,7 +262,7 @@ fn parse_index_run(i: &[u8]) -> IResult<&[u8], Vec<u8>> {
 }
 
 // rebuilding
-const HEADER_SIZE: u32 = 0x40;
+const HEADER_SIZE: u32 = 0x20;
 
 impl BBCFHip {
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -259,16 +287,18 @@ impl BBCFHip {
         // 04: version?
         // 08: file size
         // 0C: palette size
-        // 10: unknown X
-        // 14: unknown Y
+        // 10: texture width
+        // 14: texture height
         // 18: unknown
-        // 1C: unknown 2
-        // 20: image width
-        // 24: image height
-        // 28: X offset?
-        // 2C: Y offset?
-        // 30: 16-byte padding
-        // 40..N: image data
+        // 1C: extra header data size
+        // 20..40 (if extra header data): 
+        // image width
+        // image height
+        // X offset?
+        // Y offset?
+        // 16-byte unknown
+        //
+        // end of header..N: image data
 
         // magic
         final_bytes.write(b"HIP\0").unwrap();
@@ -278,7 +308,11 @@ impl BBCFHip {
 
         // file size
         final_bytes
-            .write_u32::<LE>(HEADER_SIZE + image_bytes.len() as u32)
+            .write_u32::<LE>(
+                HEADER_SIZE
+                    + self.extra_header_data.as_ref().map_or(0, |x| x.size())
+                    + image_bytes.len() as u32,
+            )
             .unwrap();
 
         // palette size
@@ -294,28 +328,37 @@ impl BBCFHip {
         };
         final_bytes.write_u32::<LE>(palette_size as u32).unwrap();
 
-        // unknown X and Y
-        final_bytes.write_u32::<LE>(self.unk_width).unwrap();
-        final_bytes.write_u32::<LE>(self.unk_height).unwrap();
+        // header data
+        if let Some(header) = self.extra_header_data.clone() {
+            final_bytes
+                .write_u32::<LE>(self.texture_dimensions.0)
+                .unwrap();
+            final_bytes
+                .write_u32::<LE>(self.texture_dimensions.1)
+                .unwrap();
 
-        // unknown
-        final_bytes.write_u32::<LE>(self.unknown).unwrap();
-        final_bytes.write_u32::<LE>(self.unknown_2).unwrap();
+            final_bytes.write_u32::<LE>(self.unknown).unwrap();
+
+            final_bytes.write_u32::<LE>(header.size()).unwrap();
+
+            final_bytes.write_u32::<LE>(self.image.width()).unwrap();
+            final_bytes.write_u32::<LE>(self.image.height()).unwrap();
+            final_bytes.write_u32::<LE>(header.x_offset).unwrap();
+            final_bytes.write_u32::<LE>(header.y_offset).unwrap();
+            final_bytes.extend(header.extra);
+            
+        } else {
+            final_bytes.write_u32::<LE>(self.image.width()).unwrap();
+            final_bytes.write_u32::<LE>(self.image.height()).unwrap();
+
+            final_bytes.write_u32::<LE>(self.unknown).unwrap();
+
+            final_bytes.write_u32::<LE>(0).unwrap();
+        }
 
         // image width and height
-        final_bytes
-            .write_u32::<LE>(self.image.width())
-            .unwrap();
-        final_bytes
-            .write_u32::<LE>(self.image.height())
-            .unwrap();
-
-        // offsets
-        final_bytes.write_u32::<LE>(self.x_offset).unwrap();
-        final_bytes.write_u32::<LE>(self.y_offset).unwrap();
-
-        // 0x10 padding
-        final_bytes.write_u128::<LE>(0).unwrap();
+        final_bytes.write_u32::<LE>(self.image.width()).unwrap();
+        final_bytes.write_u32::<LE>(self.image.height()).unwrap();
 
         final_bytes.append(&mut image_bytes);
 
