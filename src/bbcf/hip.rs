@@ -156,8 +156,6 @@ fn parse_hip_impl(i: &[u8]) -> IResult<&[u8], BBCFHip> {
         (i, None)
     };
 
-    let (i, _padding) = nom::bytes::complete::take(0x10usize)(i)?;
-
     let (i, image_data) = if palette_size > 0 {
         let (i, img) = parse_indexed_image(i, palette_size, image_data_w, image_data_h)?;
 
