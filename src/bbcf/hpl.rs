@@ -59,7 +59,7 @@ fn parse_hpl_impl(i: &[u8]) -> IResult<&[u8], BBCFHpl> {
 }
 
 fn parse_palette(i: &[u8], size: u32) -> IResult<&[u8], Vec<RGBAColor>> {
-    nom::multi::count(helpers::parse_rgba, size as usize)(i)
+    nom::multi::count(helpers::parse_bgra, size as usize)(i)
 }
 
 
@@ -75,7 +75,7 @@ impl BBCFHpl {
         // 0C: palette size
         // 10: unknown u32, u32, u16, u16
         // 1C: 4-byte padding
-        // 20..N: palette of RGBA8 colors
+        // 20..N: palette of BGRA8 colors
 
         const HEADER_SIZE: usize = 0x20;
 
@@ -96,7 +96,7 @@ impl BBCFHpl {
         final_bytes.write_u32::<LE>(0x0).unwrap();
 
         // write palette
-        self.palette.iter().for_each(|p| final_bytes.extend(p.to_rgba_slice()));
+        self.palette.iter().for_each(|p| final_bytes.extend(p.to_bgra_slice()));
 
         final_bytes
     }

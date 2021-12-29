@@ -96,6 +96,23 @@ pub fn slice_consumed(slice: &[u8]) -> Result<(), Error> {
     }
 }
 
+pub(crate) fn parse_bgra(i: &[u8]) -> IResult<&[u8], RGBAColor> {
+    let (i, blue) = le_u8(i)?;
+    let (i, green) = le_u8(i)?;
+    let (i, red) = le_u8(i)?;
+    let (i, alpha) = le_u8(i)?;
+
+    return Ok((
+        i,
+        RGBAColor {
+            red,
+            green,
+            blue,
+            alpha,
+        },
+    ));
+}
+
 pub(crate) fn parse_rgba(i: &[u8]) -> IResult<&[u8], RGBAColor> {
     let (i, red) = le_u8(i)?;
     let (i, green) = le_u8(i)?;
@@ -144,6 +161,9 @@ impl RGBAColor {
     }
     pub fn to_argb_slice(&self) -> [u8; 4] {
         [self.alpha, self.red, self.green, self.blue]
+    }
+    pub fn to_bgra_slice(&self) -> [u8; 4] {
+        [self.blue, self.green, self.red, self.alpha]
     }
 }
 

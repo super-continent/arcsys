@@ -228,7 +228,7 @@ fn parse_palette(i: &[u8], palette_length: u32) -> IResult<&[u8], Vec<RGBAColor>
     let mut palette = Vec::new();
 
     let i = (0..palette_length).try_fold(i, |i, _| {
-        let (i, palette_entry) = helpers::parse_rgba(i)?;
+        let (i, palette_entry) = helpers::parse_bgra(i)?;
         palette.push(palette_entry);
         Ok(i)
     })?;
