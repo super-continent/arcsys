@@ -100,7 +100,7 @@ impl BBCFHip {
                 helpers::slice_consumed(i)?;
                 Ok(pac)
             }
-            Err(e) => Err(Error::Parser(e.map_input(|a| &[0]).to_string())),
+            Err(e) => Err(Error::Parser(e.to_string())),
         }
     }
 }
