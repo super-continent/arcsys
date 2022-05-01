@@ -134,6 +134,6 @@ mod tests {
         }
         
         assert!(replay_data.is_ok());
-        std::fs::write("./REPLAY_INPUTS.bin", replay_data.unwrap().replay_inputs).unwrap();
+        // std::fs::write("./REPLAY_INPUTS.bin", replay_data.unwrap().replay_inputs).unwrap();
     }
 }
