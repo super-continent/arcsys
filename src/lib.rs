@@ -129,6 +129,11 @@ mod tests {
 
         let replay_data = AcprReplay::read(&mut std::io::Cursor::new(bytes));
 
+        if let Err(e) = &replay_data {
+            eprintln!("{:?}", e);
+        }
+        
         assert!(replay_data.is_ok());
+        std::fs::write("./REPLAY_INPUTS.bin", replay_data.unwrap().replay_inputs).unwrap();
     }
 }

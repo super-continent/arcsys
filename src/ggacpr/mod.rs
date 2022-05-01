@@ -1,21 +1,23 @@
 pub mod replay {
-    use binrw::{binread, NullString, BinRead};
+    use std::io::Read;
+
+    use binrw::{binread, BinRead, BinResult, NullString};
 
     use crate::Error;
 
     #[binread]
-    // unsure what the data after GGR means,
-    // but it seems to remain consistent across replays
-    #[br(little, magic = b"GGR")]
+    // MAGIC signature is this literal on all ACPR replays after Dec. 2021
+    #[br(little, magic = b"GGR\x02\x51\xAD\xEE\x77\x45\xD7\x48\xCD")]
     #[derive(Clone)]
     pub struct AcprReplay {
-        _signature: [u8; 9],
         _metadata_size: u16,
-        _unknown: [u8; 12],
+        compressed_input_size: u32,
+        uncompressed_input_size: u32,
 
+        replay_hash: u32,
         pub replay_date: ReplayTime,
 
-        _unknown2: u8,
+        _unknown: u8,
 
         pub p1_steam_id: u64,
         pub p2_steam_id: u64,
@@ -49,6 +51,22 @@ pub mod replay {
         pub p1_rank: u8,
         pub p2_rank: u8,
         pub match_result: MatchResult,
+        #[br(parse_with = parse_inputs)]
+        pub replay_inputs: Vec<u8>,
+    }
+
+    fn parse_inputs<R: binrw::io::Read + binrw::io::Seek>(
+        reader: &mut R,
+        _read_options: &binrw::ReadOptions,
+        _: (),
+    ) -> BinResult<Vec<u8>> {
+        let mut bytes = Vec::new();
+
+        let mut r = flate2::read::ZlibDecoder::new(reader);
+
+        r.read_to_end(&mut bytes).unwrap();
+
+        Ok(bytes)
     }
 
     impl AcprReplay {
