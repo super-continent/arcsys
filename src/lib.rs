@@ -4,12 +4,8 @@ mod error;
 mod helpers;
 mod traits;
 
-/// Blazblue Centralfiction
 pub mod bbcf;
-/// Guilty Gear STRIVE
 pub mod ggst;
-/// Guilty Gear XX Accent Core +R
-pub mod ggacpr;
 
 pub use error::Error;
 pub use helpers::{IndexedImage, RGBAColor};
@@ -20,16 +16,12 @@ mod tests {
 
     // This requires you to place your own pac files taken from the games into a test_files folder
 
-    use binrw::BinRead;
-
     // PAC files that contain jonbin (collision) files
     static GGST_JONBINS_PAC: &[u8] = include_bytes!("../test_files/ggst_jonbins.pac");
     static BBCF_JONBINS_PAC: &[u8] = include_bytes!("../test_files/bbcf_jonbins.pac");
 
     // PAC files that contain HIP (image) files
     static BBCF_COMPRESSED_HIPS_PAC: &[u8] = include_bytes!("../test_files/char_jb_img.pac");
-
-    static ACPR_REPLAY: &[u8] = include_bytes!("../test_files/test_replay.ggr");
 
     #[test]
     fn test_pac() {
@@ -119,21 +111,5 @@ mod tests {
 
         //let hip = bbcf::hip::BBCFHip::parse(&palette_image.contents).unwrap();
         //let bytes = hip.to_bytes();
-    }
-
-    #[test]
-    fn test_acpr_replay() {
-        use crate::ggacpr::replay::AcprReplay;
-        let bytes: Vec<u8> = ACPR_REPLAY.to_vec();
-
-
-        let replay_data = AcprReplay::read(&mut std::io::Cursor::new(bytes));
-
-        if let Err(e) = &replay_data {
-            eprintln!("{:?}", e);
-        }
-        
-        assert!(replay_data.is_ok());
-        // std::fs::write("./REPLAY_INPUTS.bin", replay_data.unwrap().replay_inputs).unwrap();
     }
 }

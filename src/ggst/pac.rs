@@ -30,7 +30,7 @@ impl Pac for GGSTPac {
             .max()
             .expect("no entries");
 
-        helpers::pad_to_nearest_with_excess(largest_name, 0x10)
+        helpers::pad_to_nearest_with_excess(largest_name, 0x20)
     }
 
     fn total_file_size(&self) -> usize {
@@ -43,7 +43,7 @@ impl Pac for GGSTPac {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Eq, Ord, PartialEq, PartialOrd)]
 pub struct GGSTPacEntry {
     pub unknown: u32,
     pub id: u32,

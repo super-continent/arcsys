@@ -9,8 +9,7 @@ use crate::{
 use byteorder::{WriteBytesExt, LE};
 use nom::{
     bytes::complete::{tag, take},
-    error::ErrorKind,
-    number::complete::{le_u32, le_u8, le_u16},
+    number::complete::{le_u32, le_u8},
     IResult,
 };
 use serde::{Deserialize, Serialize};
@@ -36,30 +35,36 @@ pub enum BBCFHipImage {
         #[serde(skip)]
         data: Vec<RGBAColor>,
     },
-    Luma {
-        #[serde(skip)]
-        width: u32,
-        #[serde(skip)]
-        height: u32,
-        #[serde(skip)]
-        data: Vec<u16>,
-    },
 }
 
 impl BBCFHipImage {
     pub fn width(&self) -> u32 {
         match self {
-            BBCFHipImage::Indexed { width, .. } => *width,
-            BBCFHipImage::Raw { width, .. } => *width,
-            BBCFHipImage::Luma { width, .. } => *width,
+            BBCFHipImage::Indexed {
+                width,
+                height: _,
+                data: _,
+            } => *width,
+            BBCFHipImage::Raw {
+                width,
+                height: _,
+                data: _,
+            } => *width,
         }
     }
 
     pub fn height(&self) -> u32 {
         match self {
-            BBCFHipImage::Indexed { height, .. } => *height,
-            BBCFHipImage::Raw { height, .. } => *height,
-            BBCFHipImage::Luma { height, .. } => *height,
+            BBCFHipImage::Indexed {
+                width: _,
+                height,
+                data: _,
+            } => *height,
+            BBCFHipImage::Raw {
+                width: _,
+                height,
+                data: _,
+            } => *height,
         }
     }
 }
@@ -73,7 +78,7 @@ pub struct BBCFHip {
     /// size, and the extra header data added on is used to indicate actual
     /// dimensions for processing the image data
     pub texture_dimensions: (u32, u32),
-    pub unknown: [u8; 3],
+    pub unknown: u32,
     pub extra_header_data: Option<BBCFHipExtra>,
     pub image: BBCFHipImage,
 }
@@ -123,8 +128,7 @@ fn parse_hip_impl(i: &[u8]) -> IResult<&[u8], BBCFHip> {
 
     //dbg!(unk_w, unk_h);
 
-    let (i, encoding_tag) = nom::number::complete::u8(i)?;
-    let (i, unk) = take(3usize)(i)?;
+    let (i, unk) = le_u32(i)?;
     let (i, extra_header_size) = le_u32(i)?;
 
     let mut image_data_w = texture_w;
@@ -152,38 +156,26 @@ fn parse_hip_impl(i: &[u8]) -> IResult<&[u8], BBCFHip> {
         (i, None)
     };
 
-    let (i, image_data) = match encoding_tag {
-        // indexed image
-        0x01 => {
-            let (i, img) = parse_indexed_image(i, palette_size, image_data_w, image_data_h)?;
+    let (i, image_data) = if palette_size > 0 {
+        let (i, img) = parse_indexed_image(i, palette_size, image_data_w, image_data_h)?;
 
-            // hack to deal with a couple image files having 2 null bytes at the end
-            // not sure why they do that but otherwise it will throw an error from the slice not fully consumed
-            let i = if i == &[0, 0] {
-                nom::bytes::complete::take(2usize)(i)?.0
-            } else {
-                i
-            };
+        // hack to deal with a couple image files having 2 null bytes at the end
+        // not sure why they do that but otherwise it will throw an error from the slice not fully consumed
+        let i = if i == &[0, 0] {
+            nom::bytes::complete::take(2usize)(i)?.0
+        } else {
+            i
+        };
 
-            (i, img)
-        }
-        // ARBG image
-        0x10 => parse_arbg_image(i, image_data_w, image_data_h)?,
-        // Luma16 image
-        0x04 => parse_luma_image(i, image_data_w, image_data_h)?,
-        _ => {
-            // how do i use nom errors
-            return Err(nom::Err::Error(nom::error::Error {
-                input: &[],
-                code: ErrorKind::NoneOf,
-            }));
-        }
+        (i, img)
+    } else {
+        parse_raw_image(i, image_data_w, image_data_h)?
     };
 
     let image = BBCFHip {
         version,
         texture_dimensions: (texture_w, texture_h),
-        unknown: [unk[0], unk[1], unk[2]],
+        unknown: unk,
         extra_header_data,
         image: image_data,
     };
@@ -209,7 +201,7 @@ fn parse_indexed_image(
     Ok((i, indexed_image))
 }
 
-fn parse_arbg_image(mut i: &[u8], width: u32, height: u32) -> IResult<&[u8], BBCFHipImage> {
+fn parse_raw_image(mut i: &[u8], width: u32, height: u32) -> IResult<&[u8], BBCFHipImage> {
     let len = width * height;
     let mut image_content = Vec::new();
 
@@ -224,29 +216,6 @@ fn parse_arbg_image(mut i: &[u8], width: u32, height: u32) -> IResult<&[u8], BBC
     }
 
     let image = BBCFHipImage::Raw {
-        width,
-        height,
-        data: image_content,
-    };
-
-    Ok((i, image))
-}
-
-fn parse_luma_image(mut i: &[u8], width: u32, height: u32) -> IResult<&[u8], BBCFHipImage> {
-    let len = width * height;
-    let mut image_content = Vec::new();
-
-    while image_content.len() != len as usize {
-        let (scoped_i, luma) = le_u16(i)?;
-        let (scoped_i, run) = le_u8(scoped_i)?;
-
-        let it = (0..run).map(|_| luma);
-        image_content.extend(it);
-
-        i = scoped_i;
-    }
-
-    let image = BBCFHipImage::Luma {
         width,
         height,
         data: image_content,
@@ -296,9 +265,16 @@ const HEADER_SIZE: u32 = 0x20;
 impl BBCFHip {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut image_bytes = match self.image.clone() {
-            BBCFHipImage::Indexed { data: indexed, .. } => indexed_to_run_encoded(indexed),
-            BBCFHipImage::Raw { data: raw, .. } => raw_to_run_encoded(raw),
-            BBCFHipImage::Luma { data: raw, .. } => luma_to_run_encoded(raw),
+            BBCFHipImage::Indexed {
+                width: _,
+                height: _,
+                data: indexed,
+            } => indexed_to_run_encoded(indexed),
+            BBCFHipImage::Raw {
+                width: _,
+                height: _,
+                data: raw,
+            } => raw_to_run_encoded(raw),
         };
 
         let mut final_bytes = Vec::new();
@@ -311,9 +287,9 @@ impl BBCFHip {
         // 0C: palette size
         // 10: texture width
         // 14: texture height
-        // 18: 1-byte encoding tag, 3 bytes unknown
+        // 18: unknown
         // 1C: extra header data size
-        // 20..40 (if extra header data):
+        // 20..40 (if extra header data): 
         // image width
         // image height
         // X offset?
@@ -321,8 +297,6 @@ impl BBCFHip {
         // 16-byte unknown
         //
         // end of header..N: image data
-        //
-        // Encoding tag values: 0x01 for indexed, 0x10 for ARBG, 0x04 for Luma16
 
         // magic
         final_bytes.write(b"HIP\0").unwrap();
@@ -353,12 +327,6 @@ impl BBCFHip {
         final_bytes.write_u32::<LE>(palette_size as u32).unwrap();
 
         // header data
-        let encoding_tag = match self.image {
-            BBCFHipImage::Indexed { .. } => 0x01,
-            BBCFHipImage::Raw { .. } => 0x10,
-            BBCFHipImage::Luma { .. } => 0x04,
-        };
-
         if let Some(header) = self.extra_header_data.clone() {
             final_bytes
                 .write_u32::<LE>(self.texture_dimensions.0)
@@ -367,8 +335,7 @@ impl BBCFHip {
                 .write_u32::<LE>(self.texture_dimensions.1)
                 .unwrap();
 
-            final_bytes.write_u8(encoding_tag).unwrap();
-            final_bytes.write(&self.unknown).unwrap();
+            final_bytes.write_u32::<LE>(self.unknown).unwrap();
 
             final_bytes.write_u32::<LE>(header.size()).unwrap();
 
@@ -377,12 +344,12 @@ impl BBCFHip {
             final_bytes.write_u32::<LE>(header.x_offset).unwrap();
             final_bytes.write_u32::<LE>(header.y_offset).unwrap();
             final_bytes.extend(header.extra);
+            
         } else {
             final_bytes.write_u32::<LE>(self.image.width()).unwrap();
             final_bytes.write_u32::<LE>(self.image.height()).unwrap();
 
-            final_bytes.write_u8(encoding_tag).unwrap();
-            final_bytes.write(&self.unknown).unwrap();
+            final_bytes.write_u32::<LE>(self.unknown).unwrap();
 
             final_bytes.write_u32::<LE>(0).unwrap();
         }
@@ -467,41 +434,6 @@ fn raw_to_run_encoded(raw: Vec<RGBAColor>) -> Vec<u8> {
             }
         } else {
             final_image.extend(i.to_argb_slice());
-            final_image.push(run_length);
-        }
-    }
-
-    final_image
-}
-
-fn luma_to_run_encoded(raw: Vec<u16>) -> Vec<u8> {
-    let mut final_image = Vec::new();
-
-    let mut run_length = 0;
-    let mut indexes = raw.into_iter().peekable();
-    while let Some(i) = indexes.next() {
-        run_length += 1;
-
-        if run_length == u8::MAX {
-            final_image.extend(i.to_le_bytes());
-            final_image.push(run_length);
-
-            run_length = 0;
-            continue;
-        }
-
-        if let Some(next) = indexes.peek() {
-            if i == *next {
-                continue;
-            } else {
-                final_image.extend(i.to_le_bytes());
-                final_image.push(run_length);
-
-                run_length = 0;
-                continue;
-            }
-        } else {
-            final_image.extend(i.to_le_bytes());
             final_image.push(run_length);
         }
     }

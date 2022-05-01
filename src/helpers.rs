@@ -113,23 +113,6 @@ pub(crate) fn parse_bgra(i: &[u8]) -> IResult<&[u8], RGBAColor> {
     ));
 }
 
-pub(crate) fn parse_rgba(i: &[u8]) -> IResult<&[u8], RGBAColor> {
-    let (i, red) = le_u8(i)?;
-    let (i, green) = le_u8(i)?;
-    let (i, blue) = le_u8(i)?;
-    let (i, alpha) = le_u8(i)?;
-
-    return Ok((
-        i,
-        RGBAColor {
-            red,
-            green,
-            blue,
-            alpha,
-        },
-    ));
-}
-
 pub(crate) fn parse_argb(i: &[u8]) -> IResult<&[u8], RGBAColor> {
     let (i, alpha) = le_u8(i)?;
     let (i, red) = le_u8(i)?;

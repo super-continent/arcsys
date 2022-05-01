@@ -16,9 +16,9 @@ pub struct GGSTJonBin {
     pub names: Vec<String>,
     pub version: u16,
     pub editor_data: Vec<Vec<u8>>,
-    /// A collection of hitboxes sorted into layers.
-    /// for example, layer 1 is generally hitboxes, and layer 2 is hurtboxes
-    pub boxes: Vec<Vec<HitBox>>,
+    pub hurtboxes: Vec<HitBox>,
+    pub hitboxes: Vec<HitBox>,
+    pub unk_boxes: Vec<Vec<HitBox>>,
 }
 
 impl GGSTJonBin {
@@ -36,21 +36,21 @@ impl GGSTJonBin {
 
 impl JonBin for GGSTJonBin {}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 pub struct HitBox {
     pub kind: u32,
     pub rect: Rect,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 pub struct Rect {
-    x_offset: f32,
-    y_offset: f32,
-    width: f32,
-    height: f32,
+    pub x_offset: f32,
+    pub y_offset: f32,
+    pub width: f32,
+    pub height: f32,
 }
 
-const BOX_LAYER_COUNT: usize = 0x2C;
+const UNK_BOX_COUNT: usize = 0x54 / 2;
 fn parse_jonbin_impl(i: &[u8]) -> IResult<&[u8], GGSTJonBin> {
     let (i, _) = tag(GGSTJonBin::MAGIC_JONB)(i)?;
 
@@ -66,18 +66,23 @@ fn parse_jonbin_impl(i: &[u8]) -> IResult<&[u8], GGSTJonBin> {
     let (i, _null) = le_u8(i)?;
 
     let (i, editor_data_count) = le_u32(i)?;
+    let (i, hurtbox_count) = le_u16(i)?;
+    let (i, hitbox_count) = le_u16(i)?;
     // dbg!(editor_data_count);
     // dbg!(hurtbox_count);
     // dbg!(hitbox_count);
 
-    let (i, mut box_layer_sizes) = count(le_u16, BOX_LAYER_COUNT)(i)?;
+    let (i, mut unk_boxes_header) = count(le_u16, UNK_BOX_COUNT)(i)?;
 
     let (i, editor_data) = count(parse_editor_data, editor_data_count as usize)(i)?;
 
-    let unkbox_count = box_layer_sizes.len();
-    let (i, boxes) = count(
+    let (i, hurtboxes) = count(parse_box, hurtbox_count as usize)(i)?;
+    let (i, hitboxes) = count(parse_box, hitbox_count as usize)(i)?;
+
+    let unkbox_count = unk_boxes_header.len();
+    let (i, unk_boxes) = count(
         |i| {
-            let (i, hitboxes) = count(parse_box, box_layer_sizes.remove(0) as usize)(i)?;
+            let (i, hitboxes) = count(parse_box, unk_boxes_header.remove(0) as usize)(i)?;
             Ok((i, hitboxes))
         },
         unkbox_count,
@@ -87,7 +92,9 @@ fn parse_jonbin_impl(i: &[u8]) -> IResult<&[u8], GGSTJonBin> {
         names: names.into_iter().map(|n| n.to_string()).collect(),
         version,
         editor_data: editor_data.into_iter().map(|x| x.to_vec()).collect(),
-        boxes: boxes,
+        hurtboxes,
+        hitboxes,
+        unk_boxes,
     };
 
     Ok((i, jonbin))
@@ -105,7 +112,7 @@ fn parse_editor_data(i: &[u8]) -> IResult<&[u8], &[u8]> {
     Ok((i, bytes))
 }
 
-fn parse_box(i: &[u8],) -> IResult<&[u8], HitBox> {
+fn parse_box(i: &[u8]) -> IResult<&[u8], HitBox> {
     let (i, kind) = le_u32(i)?;
     let (i, rect) = parse_rect(i)?;
 
@@ -145,9 +152,9 @@ impl GGSTJonBin {
         // n version?
         // n+2 null byte? seems to always be 0
         // n+3 u32, number of editor data blocks
-        // n+7 big array of u16s for the number of boxes of each layer: hurtbox, hitbox, unknown...
+        // n+7 big array of u16s for the number of boxes of each category: hurtbox, hitbox, unknown...
         // n+5F editor data blocks, each one 0x50 long.
-        // next data is boxes, in sequential order of layers
+        // next data is hurtboxes, hitboxes, and then 0x54 of u16s specifying counts of unknown hitbox types
         // hitbox layout is u32 for ID? followed by f32, f32, f32, f32
         // for x, y, width, height.
         rebuilt.write_all(Self::MAGIC_JONB).unwrap();
@@ -165,8 +172,12 @@ impl GGSTJonBin {
         rebuilt
             .write_u32::<LE>(self.editor_data.len() as u32)
             .unwrap();
+        rebuilt
+            .write_u16::<LE>(self.hurtboxes.len() as u16)
+            .unwrap();
+        rebuilt.write_u16::<LE>(self.hitboxes.len() as u16).unwrap();
 
-        self.boxes
+        self.unk_boxes
             .iter()
             .for_each(|boxes| rebuilt.write_u16::<LE>(boxes.len() as u16).unwrap());
 
@@ -182,7 +193,10 @@ impl GGSTJonBin {
             rebuilt.write_f32::<LE>(hitbox.rect.height).unwrap();
         };
 
-        self.boxes.iter().for_each(|boxes| {
+        self.hurtboxes.iter().for_each(&mut write_hitbox);
+        self.hitboxes.iter().for_each(&mut write_hitbox);
+
+        self.unk_boxes.iter().for_each(|boxes| {
             for b in boxes {
                 write_hitbox(b);
             }
