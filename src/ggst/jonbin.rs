@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::{io::Write};
 
 use nom::{
     bytes::complete::{tag, take},
@@ -16,9 +16,7 @@ pub struct GGSTJonBin {
     pub names: Vec<String>,
     pub version: u16,
     pub editor_data: Vec<Vec<u8>>,
-    pub hurtboxes: Vec<HitBox>,
-    pub hitboxes: Vec<HitBox>,
-    pub unk_boxes: Vec<Vec<HitBox>>,
+    pub boxes: Vec<Vec<HitBox>>,
 }
 
 impl GGSTJonBin {
@@ -40,7 +38,7 @@ impl JonBin for GGSTJonBin {}
 pub struct HitBox {
     pub kind: u32,
     pub rect: Rect,
-    extra: Option<u32>,
+    pub extra: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Copy)]
@@ -51,7 +49,7 @@ pub struct Rect {
     pub height: f32,
 }
 
-const UNK_BOX_COUNT: usize = 0x54 / 2;
+const BOX_LAYER_COUNT: usize = 0x2C;
 fn parse_jonbin_impl(i: &[u8], is_gbvs: bool) -> IResult<&[u8], GGSTJonBin> {
     let (i, _) = tag(GGSTJonBin::MAGIC_JONB)(i)?;
 
@@ -67,51 +65,43 @@ fn parse_jonbin_impl(i: &[u8], is_gbvs: bool) -> IResult<&[u8], GGSTJonBin> {
     let (i, _null) = le_u8(i)?;
 
     let (i, editor_data_count) = le_u32(i)?;
-    let (i, hurtbox_count) = le_u16(i)?;
-    let (i, hitbox_count) = le_u16(i)?;
     // dbg!(editor_data_count);
     // dbg!(hurtbox_count);
     // dbg!(hitbox_count);
 
-    let (i, mut unk_boxes_header) = count(le_u16, UNK_BOX_COUNT)(i)?;
-
-    let (i, editor_data) = Vec::new();
-
-    if version == 276 {
-        let (i, editor_data) = count(parse_editor_data_xrd, editor_data_count as usize)(i)?;
+    let (i, mut box_layer_sizes) = if version == 277{
+        count(le_u16, BOX_LAYER_COUNT)(i)?
     }
-    else {
-        let (i, editor_data) = count(parse_editor_data, editor_data_count as usize)(i)?;
-    }
+    else{
+        count(le_u16, BOX_LAYER_COUNT - 1)(i)?
+    };
 
-    let (i, hurtboxes) = Vec::new();
-    let (i, hitboxes) = Vec::new();
+    let (i, editor_data) = count(parse_editor_data, editor_data_count as usize)(i)?;
 
-    if !is_gbvs {
-        let (i, hurtboxes) = count(parse_box, hurtbox_count as usize)(i)?;
-        let (i, hitboxes) = count(parse_box, hitbox_count as usize)(i)?;
-    } 
-    else {
-        let (i, hurtboxes) = count(parse_box_gbvs, hurtbox_count as usize)(i)?;
-        let (i, hitboxes) = count(parse_box_gbvs, hitbox_count as usize)(i)?;    
-    }
-
-    let unkbox_count = unk_boxes_header.len();
-    let (i, unk_boxes) = count(
-        |i| {
-            let (i, hitboxes) = count(parse_box, unk_boxes_header.remove(0) as usize)(i)?;
-            Ok((i, hitboxes))
-        },
-        unkbox_count,
-    )(i)?;
+    let unkbox_count = box_layer_sizes.len();
+    let (i, boxes) = if !is_gbvs {
+        count(
+            |i| {
+                let (i, hitboxes) = count(parse_box, box_layer_sizes.remove(0) as usize)(i)?;
+                Ok((i, hitboxes))
+            },
+            unkbox_count,
+        )(i)?
+    } else {
+        count(
+            |i| {
+                let (i, hitboxes) = count(parse_box_gbvs, box_layer_sizes.remove(0) as usize)(i)?;
+                Ok((i, hitboxes))
+            },
+            unkbox_count,
+        )(i)?
+    };
 
     let jonbin = GGSTJonBin {
         names: names.into_iter().map(|n| n.to_string()).collect(),
         version,
         editor_data: editor_data.into_iter().map(|x| x.to_vec()).collect(),
-        hurtboxes,
-        hitboxes,
-        unk_boxes,
+        boxes: boxes,
     };
 
     Ok((i, jonbin))
@@ -129,22 +119,10 @@ fn parse_editor_data(i: &[u8]) -> IResult<&[u8], &[u8]> {
     Ok((i, bytes))
 }
 
-fn parse_editor_data_xrd(i: &[u8]) -> IResult<&[u8], &[u8]> {
-    // let (i, src_rect) = parse_rect(i)?;
-    // dbg!(src_rect);
-
-    // let (i, dest_rect) = parse_rect(i)?;
-    // dbg!(dest_rect);
-
-    let (i, bytes) = take(0x48usize)(i)?;
-
-    Ok((i, bytes))
-}
-
 fn parse_box(i: &[u8]) -> IResult<&[u8], HitBox> {
     let (i, kind) = le_u32(i)?;
     let (i, rect) = parse_rect(i)?;
-    let (i, extra) = None;
+    let (i, extra) = (i, None);
 
     let hitbox = HitBox { kind, rect, extra };
 
@@ -156,7 +134,7 @@ fn parse_box_gbvs(i: &[u8]) -> IResult<&[u8], HitBox> {
     let (i, rect) = parse_rect(i)?;
     let (i, extra) = le_u32(i)?;
 
-    let hitbox = HitBox { kind, rect, extra };
+    let hitbox = HitBox { kind, rect, extra: Some(extra) };
 
     Ok((i, hitbox))
 }
@@ -212,12 +190,8 @@ impl GGSTJonBin {
         rebuilt
             .write_u32::<LE>(self.editor_data.len() as u32)
             .unwrap();
-        rebuilt
-            .write_u16::<LE>(self.hurtboxes.len() as u16)
-            .unwrap();
-        rebuilt.write_u16::<LE>(self.hitboxes.len() as u16).unwrap();
 
-        self.unk_boxes
+        self.boxes
             .iter()
             .for_each(|boxes| rebuilt.write_u16::<LE>(boxes.len() as u16).unwrap());
 
@@ -231,15 +205,12 @@ impl GGSTJonBin {
             rebuilt.write_f32::<LE>(hitbox.rect.y_offset).unwrap();
             rebuilt.write_f32::<LE>(hitbox.rect.width).unwrap();
             rebuilt.write_f32::<LE>(hitbox.rect.height).unwrap();
-            if hitbox.extra != none {
-                rebuilt.write_f32::<LE>(hitbox.rect.extra.unwrap()).unwrap();
+            if hitbox.extra != None {
+                rebuilt.write_u32::<LE>(hitbox.extra.unwrap()).unwrap();
             }
         };
 
-        self.hurtboxes.iter().for_each(&mut write_hitbox);
-        self.hitboxes.iter().for_each(&mut write_hitbox);
-
-        self.unk_boxes.iter().for_each(|boxes| {
+        self.boxes.iter().for_each(|boxes| {
             for b in boxes {
                 write_hitbox(b);
             }

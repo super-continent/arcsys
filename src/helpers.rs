@@ -92,7 +92,7 @@ pub fn slice_consumed(slice: &[u8]) -> Result<(), Error> {
 
     match slice.len() {
         0 => Ok(()),
-        _ => Err(Error::Parser("Full slice not consumed".into())),
+        _ => Err(Error::Parser(format!("Full slice not consumed! Length left is {}", slice.len()).into())),
     }
 }
 

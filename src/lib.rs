@@ -67,7 +67,7 @@ mod tests {
         // Iterate through all the jonbins contained in the pac
         for entry in parsed.files {
             //eprintln!("parsing: {}", entry.name);
-            let parsed_jonbin = ggst::jonbin::GGSTJonBin::parse(&entry.contents);
+            let parsed_jonbin = ggst::jonbin::GGSTJonBin::parse(&entry.contents, true);
 
             if let Err(ref e) = parsed_jonbin {
                 println!("{}", e);
