@@ -6,7 +6,6 @@ mod traits;
 
 pub mod bbcf;
 pub mod ggst;
-pub mod ggxrd;
 
 pub use error::Error;
 pub use helpers::{IndexedImage, RGBAColor};

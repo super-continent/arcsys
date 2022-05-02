@@ -232,7 +232,7 @@ impl GGSTJonBin {
             rebuilt.write_f32::<LE>(hitbox.rect.width).unwrap();
             rebuilt.write_f32::<LE>(hitbox.rect.height).unwrap();
             if hitbox.extra != none {
-                rebuilt.write_f32::<LE>(hitbox.rect.extra).unwrap();
+                rebuilt.write_f32::<LE>(hitbox.rect.extra.unwrap()).unwrap();
             }
         };
 
