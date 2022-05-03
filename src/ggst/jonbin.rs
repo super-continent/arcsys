@@ -12,6 +12,7 @@ use crate::{helpers, traits::JonBin, Error};
 
 /// Hitbox data for GGST
 #[derive(Debug)]
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct GGSTJonBin {
     pub names: Vec<String>,
     pub version: u16,
