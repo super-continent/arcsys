@@ -1,4 +1,26 @@
-use crate::helpers::{pad_to_nearest, pad_to_nearest_with_excess, RGBAColor};
+use binrw::BinRead;
+
+use crate::{helpers::{pad_to_nearest, pad_to_nearest_with_excess, RGBAColor}, Error};
+
+/// Trait that parses a type from some binary data.
+/// This is a wrapper over [`BinRead`] which accepts all types that implement `AsRef<[u8]>`
+pub trait ParseFromBytes: Sized  {
+    /// Parse a type from a slice of bytes
+    fn parse<R: AsRef<[u8]>>(bytes: &R) -> Result<Self, Error>;
+}
+
+impl<T: BinRead> ParseFromBytes for T where <T as BinRead>::Args: Default {
+    fn parse<R: AsRef<[u8]>>(bytes: &R) -> Result<T, Error> {
+        let mut cursor = std::io::Cursor::new(bytes);
+        T::read(&mut cursor).map_err(|e| Error::Parser(e.to_string()))
+    }
+}
+
+/// Trait implemented by types that can be rebuilt into a vector of bytes
+pub trait Rebuild {
+    /// Rebuild the type into a [`Vec`] of bytes
+    fn to_bytes(&self) -> Vec<u8>;
+}
 
 pub(crate) trait Pac {
     const MAGIC_FPAC: &'static [u8; 4] = b"FPAC";
