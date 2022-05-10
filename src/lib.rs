@@ -4,6 +4,10 @@ mod error;
 mod helpers;
 mod traits;
 
+pub use binrw::BinRead;
+
+pub use crate::traits::{ParseFromBytes, Rebuild};
+
 /// Blazblue Centralfiction
 pub mod bbcf;
 /// Guilty Gear STRIVE
@@ -22,6 +26,8 @@ mod tests {
 
     use binrw::BinRead;
 
+    use crate::{ParseFromBytes, Rebuild};
+
     // PAC files that contain jonbin (collision) files
     static GGST_JONBINS_PAC: &[u8] = include_bytes!("../test_files/ggst_jonbins.pac");
     static BBCF_JONBINS_PAC: &[u8] = include_bytes!("../test_files/bbcf_jonbins.pac");
@@ -36,7 +42,7 @@ mod tests {
         use crate::bbcf;
         use crate::ggst;
 
-        let ggst_parsed = ggst::pac::GGSTPac::parse(GGST_JONBINS_PAC);
+        let ggst_parsed = ggst::pac::GGSTPac::parse(&GGST_JONBINS_PAC);
         let bbcf_parsed = bbcf::pac::BBCFPac::parse(BBCF_JONBINS_PAC);
 
         // Ensure pacs parse correctly
@@ -45,7 +51,7 @@ mod tests {
 
         // Ensure pacs fail to parse when whole file is not consumed or other error occurs
         assert!(bbcf::pac::BBCFPac::parse(GGST_JONBINS_PAC).is_err());
-        assert!(ggst::pac::GGSTPac::parse(BBCF_JONBINS_PAC).is_err());
+        assert!(ggst::pac::GGSTPac::parse(&BBCF_JONBINS_PAC).is_err());
 
         // test rebuilding
         let bbcf_bytes = bbcf_parsed.unwrap().to_bytes();
@@ -70,7 +76,7 @@ mod tests {
     fn test_jonbin() {
         use crate::ggst;
 
-        let parsed = ggst::pac::GGSTPac::parse(GGST_JONBINS_PAC).unwrap();
+        let parsed = ggst::pac::GGSTPac::parse(&GGST_JONBINS_PAC).unwrap();
 
         // Iterate through all the jonbins contained in the pac
         for entry in parsed.files {
