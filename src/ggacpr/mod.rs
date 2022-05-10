@@ -1,20 +1,19 @@
 pub mod replay {
     use std::io::Read;
 
-    use binrw::{binread, BinRead, BinResult, NullString};
-
-    use crate::Error;
+    use binrw::{binread, BinResult, NullString};
+    use serde::{Deserialize, Serialize};
 
     #[binread]
     // MAGIC signature is this literal on all ACPR replays after Dec. 2021
     #[br(little, magic = b"GGR\x02\x51\xAD\xEE\x77\x45\xD7\x48\xCD")]
-    #[derive(Clone)]
+    #[derive(Debug, Clone)]
     pub struct AcprReplay {
         _metadata_size: u16,
-        compressed_input_size: u32,
-        uncompressed_input_size: u32,
+        _compressed_input_size: u32,
+        _uncompressed_input_size: u32,
 
-        replay_hash: u32,
+        _replay_hash: u32,
         pub replay_date: ReplayTime,
 
         _unknown: u8,
@@ -62,21 +61,14 @@ pub mod replay {
     ) -> BinResult<Vec<u8>> {
         let mut bytes = Vec::new();
 
-        let mut r = flate2::read::ZlibDecoder::new(reader);
-
-        r.read_to_end(&mut bytes).unwrap();
+        let mut zlib_decoder = flate2::read::ZlibDecoder::new(reader);
+        zlib_decoder.read_to_end(&mut bytes).unwrap();
 
         Ok(bytes)
     }
 
-    impl AcprReplay {
-        pub fn parse<R: std::io::Read + std::io::Seek>(reader: &mut R) -> Result<Self, Error> {
-            AcprReplay::read(reader).map_err(|e| Error::Parser(e.to_string()))
-        }
-    }
-
     #[binread]
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ReplayTime {
         pub year: u16,
         pub month: u8,
@@ -88,7 +80,8 @@ pub mod replay {
 
     #[binread]
     #[br(repr = u8)]
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Serialize, Deserialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Character {
         Sol = 1,
         Ky,
@@ -119,7 +112,7 @@ pub mod replay {
 
     #[binread]
     #[br(repr = u8)]
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum MatchType {
         Single = 1,
         Team,
@@ -127,7 +120,7 @@ pub mod replay {
 
     #[binread]
     #[br(repr = u8)]
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum GameVersion {
         PlusR = 0,
         AccentCore,
@@ -135,7 +128,7 @@ pub mod replay {
 
     #[binread]
     #[br(repr = u8)]
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum MatchResult {
         P1Winner = 1,
         P2Winner,
