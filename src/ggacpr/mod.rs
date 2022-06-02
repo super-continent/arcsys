@@ -62,7 +62,7 @@ pub mod replay {
         let mut bytes = Vec::new();
 
         let mut zlib_decoder = flate2::read::ZlibDecoder::new(reader);
-        zlib_decoder.read_to_end(&mut bytes).unwrap();
+        zlib_decoder.read_to_end(&mut bytes)?;
 
         Ok(bytes)
     }
@@ -81,7 +81,7 @@ pub mod replay {
     #[binread]
     #[br(repr = u8)]
     #[derive(Serialize, Deserialize)]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum Character {
         Sol = 1,
         Ky,
@@ -112,7 +112,7 @@ pub mod replay {
 
     #[binread]
     #[br(repr = u8)]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum MatchType {
         Single = 1,
         Team,
@@ -120,7 +120,7 @@ pub mod replay {
 
     #[binread]
     #[br(repr = u8)]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum GameVersion {
         PlusR = 0,
         AccentCore,
@@ -128,7 +128,7 @@ pub mod replay {
 
     #[binread]
     #[br(repr = u8)]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum MatchResult {
         P1Winner = 1,
         P2Winner,
