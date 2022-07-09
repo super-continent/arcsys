@@ -59,8 +59,9 @@ fn parse_jonbin_impl(i: &[u8], is_gbvs: bool) -> IResult<&[u8], GGSTJonBin> {
     let (i, names) = count(|i| helpers::take_str_of_size(i, 0x20), name_count as usize)(i)?;
     // dbg!(&names);
 
-    let (i, version) = le_u16(i)?;
+    let (i, version) = le_u8(i)?;
     // dbg!(version);
+    let (i, _) = le_u8(i)?;
 
     let (i, _null) = le_u8(i)?;
 
@@ -69,12 +70,7 @@ fn parse_jonbin_impl(i: &[u8], is_gbvs: bool) -> IResult<&[u8], GGSTJonBin> {
     // dbg!(hurtbox_count);
     // dbg!(hitbox_count);
 
-    let (i, mut box_layer_sizes) = if version == 277{
-        count(le_u16, BOX_LAYER_COUNT)(i)?
-    }
-    else{
-        count(le_u16, BOX_LAYER_COUNT - 1)(i)?
-    };
+    let (i, mut box_layer_sizes) = version;
 
     let (i, editor_data) = count(parse_editor_data, editor_data_count as usize)(i)?;
 
