@@ -5,7 +5,7 @@ use crate::{helpers, traits::Pac, Error};
 use nom::{bytes::complete::take, combinator, number::complete::le_u32, IResult};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct GGSTPac {
     pub unknown: u32,
     pub files: Vec<GGSTPacEntry>,
@@ -43,7 +43,7 @@ impl Pac for GGSTPac {
     }
 }
 
-#[derive(Serialize, Deserialize, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Serialize, Deserialize, Eq, Ord, PartialEq, PartialOrd, Clone)]
 pub struct GGSTPacEntry {
     pub unknown: u32,
     pub id: u32,
