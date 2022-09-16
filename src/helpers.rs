@@ -92,7 +92,7 @@ pub fn slice_consumed(slice: &[u8]) -> Result<(), Error> {
 
     match slice.len() {
         0 => Ok(()),
-        _ => Err(Error::Parser(format!("Full slice not consumed! Length left is {}", slice.len()).into())),
+        _ => Err(Error::Parser("Full slice not consumed".into())),
     }
 }
 
@@ -100,6 +100,23 @@ pub(crate) fn parse_bgra(i: &[u8]) -> IResult<&[u8], RGBAColor> {
     let (i, blue) = le_u8(i)?;
     let (i, green) = le_u8(i)?;
     let (i, red) = le_u8(i)?;
+    let (i, alpha) = le_u8(i)?;
+
+    return Ok((
+        i,
+        RGBAColor {
+            red,
+            green,
+            blue,
+            alpha,
+        },
+    ));
+}
+
+pub(crate) fn parse_rgba(i: &[u8]) -> IResult<&[u8], RGBAColor> {
+    let (i, red) = le_u8(i)?;
+    let (i, green) = le_u8(i)?;
+    let (i, blue) = le_u8(i)?;
     let (i, alpha) = le_u8(i)?;
 
     return Ok((
