@@ -262,7 +262,7 @@ fn rebuild_pac_impl(pac: &BBCFPac) -> Vec<u8> {
             // N file ID
             // N+4 file data offset
             // N+8 file size
-            // N+C
+            // N+C padding to nearest 0x10 with excess 0x10 nulls if already aligned
             let mut file_entry = Vec::new();
             file_entry.write_all(&file_name).unwrap();
             file_entry.write_u32::<LE>(id).unwrap();
