@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::{io::Write};
 
 use nom::{
     bytes::complete::{tag, take},
@@ -12,18 +12,17 @@ use crate::{helpers, traits::JonBin, Error};
 
 /// Hitbox data for GGST
 #[derive(Debug)]
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct GGSTJonBin {
     pub names: Vec<String>,
     pub version: u16,
     pub editor_data: Vec<Vec<u8>>,
-    /// A collection of hitboxes sorted into layers.
-    /// for example, layer 1 is generally hitboxes, and layer 2 is hurtboxes
     pub boxes: Vec<Vec<HitBox>>,
 }
 
 impl GGSTJonBin {
-    pub fn parse(jonbin: &[u8]) -> Result<GGSTJonBin, Error> {
-        match parse_jonbin_impl(jonbin) {
+    pub fn parse(jonbin: &[u8], is_gbvs: bool) -> Result<GGSTJonBin, Error> {
+        match parse_jonbin_impl(jonbin, is_gbvs) {
             Ok((i, jonbin)) => {
                 // dbg!(i);
                 helpers::slice_consumed(i)?;
@@ -36,22 +35,23 @@ impl GGSTJonBin {
 
 impl JonBin for GGSTJonBin {}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 pub struct HitBox {
     pub kind: u32,
     pub rect: Rect,
+    pub extra: Option<u32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 pub struct Rect {
-    x_offset: f32,
-    y_offset: f32,
-    width: f32,
-    height: f32,
+    pub x_offset: f32,
+    pub y_offset: f32,
+    pub width: f32,
+    pub height: f32,
 }
 
 const BOX_LAYER_COUNT: usize = 0x2C;
-fn parse_jonbin_impl(i: &[u8]) -> IResult<&[u8], GGSTJonBin> {
+fn parse_jonbin_impl(i: &[u8], is_gbvs: bool) -> IResult<&[u8], GGSTJonBin> {
     let (i, _) = tag(GGSTJonBin::MAGIC_JONB)(i)?;
 
     let (i, name_count) = le_u16(i)?;
@@ -60,8 +60,9 @@ fn parse_jonbin_impl(i: &[u8]) -> IResult<&[u8], GGSTJonBin> {
     let (i, names) = count(|i| helpers::take_str_of_size(i, 0x20), name_count as usize)(i)?;
     // dbg!(&names);
 
-    let (i, version) = le_u16(i)?;
+    let (i, version) = le_u8(i)?;
     // dbg!(version);
+    let (i, _) = le_u8(i)?;
 
     let (i, _null) = le_u8(i)?;
 
@@ -70,18 +71,28 @@ fn parse_jonbin_impl(i: &[u8]) -> IResult<&[u8], GGSTJonBin> {
     // dbg!(hurtbox_count);
     // dbg!(hitbox_count);
 
-    let (i, mut box_layer_sizes) = count(le_u16, BOX_LAYER_COUNT)(i)?;
+    let (i, mut box_layer_sizes) = version;
 
     let (i, editor_data) = count(parse_editor_data, editor_data_count as usize)(i)?;
 
     let unkbox_count = box_layer_sizes.len();
-    let (i, boxes) = count(
-        |i| {
-            let (i, hitboxes) = count(parse_box, box_layer_sizes.remove(0) as usize)(i)?;
-            Ok((i, hitboxes))
-        },
-        unkbox_count,
-    )(i)?;
+    let (i, boxes) = if !is_gbvs {
+        count(
+            |i| {
+                let (i, hitboxes) = count(parse_box, box_layer_sizes.remove(0) as usize)(i)?;
+                Ok((i, hitboxes))
+            },
+            unkbox_count,
+        )(i)?
+    } else {
+        count(
+            |i| {
+                let (i, hitboxes) = count(parse_box_gbvs, box_layer_sizes.remove(0) as usize)(i)?;
+                Ok((i, hitboxes))
+            },
+            unkbox_count,
+        )(i)?
+    };
 
     let jonbin = GGSTJonBin {
         names: names.into_iter().map(|n| n.to_string()).collect(),
@@ -105,11 +116,22 @@ fn parse_editor_data(i: &[u8]) -> IResult<&[u8], &[u8]> {
     Ok((i, bytes))
 }
 
-fn parse_box(i: &[u8],) -> IResult<&[u8], HitBox> {
+fn parse_box(i: &[u8]) -> IResult<&[u8], HitBox> {
     let (i, kind) = le_u32(i)?;
     let (i, rect) = parse_rect(i)?;
+    let (i, extra) = (i, None);
 
-    let hitbox = HitBox { kind, rect };
+    let hitbox = HitBox { kind, rect, extra };
+
+    Ok((i, hitbox))
+}
+
+fn parse_box_gbvs(i: &[u8]) -> IResult<&[u8], HitBox> {
+    let (i, kind) = le_u32(i)?;
+    let (i, rect) = parse_rect(i)?;
+    let (i, extra) = le_u32(i)?;
+
+    let hitbox = HitBox { kind, rect, extra: Some(extra) };
 
     Ok((i, hitbox))
 }
@@ -145,9 +167,9 @@ impl GGSTJonBin {
         // n version?
         // n+2 null byte? seems to always be 0
         // n+3 u32, number of editor data blocks
-        // n+7 big array of u16s for the number of boxes of each layer: hurtbox, hitbox, unknown...
+        // n+7 big array of u16s for the number of boxes of each category: hurtbox, hitbox, unknown...
         // n+5F editor data blocks, each one 0x50 long.
-        // next data is boxes, in sequential order of layers
+        // next data is hurtboxes, hitboxes, and then 0x54 of u16s specifying counts of unknown hitbox types
         // hitbox layout is u32 for ID? followed by f32, f32, f32, f32
         // for x, y, width, height.
         rebuilt.write_all(Self::MAGIC_JONB).unwrap();
@@ -180,6 +202,9 @@ impl GGSTJonBin {
             rebuilt.write_f32::<LE>(hitbox.rect.y_offset).unwrap();
             rebuilt.write_f32::<LE>(hitbox.rect.width).unwrap();
             rebuilt.write_f32::<LE>(hitbox.rect.height).unwrap();
+            if hitbox.extra != None {
+                rebuilt.write_u32::<LE>(hitbox.extra.unwrap()).unwrap();
+            }
         };
 
         self.boxes.iter().for_each(|boxes| {
