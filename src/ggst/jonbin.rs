@@ -12,10 +12,10 @@ use crate::{helpers, traits::JonBin, Error};
 
 /// Hitbox data for GGST
 #[derive(Debug)]
-#[derive(serde::Deserialize, serde::Serialize)]
 pub struct GGSTJonBin {
     pub names: Vec<String>,
-    pub version: u16,
+    pub version_a: u8,
+    pub version_b: u8,
     pub editor_data: Vec<Vec<u8>>,
     pub boxes: Vec<Vec<HitBox>>,
 }
@@ -50,7 +50,6 @@ pub struct Rect {
     pub height: f32,
 }
 
-const BOX_LAYER_COUNT: usize = 0x2C;
 fn parse_jonbin_impl(i: &[u8], is_gbvs: bool) -> IResult<&[u8], GGSTJonBin> {
     let (i, _) = tag(GGSTJonBin::MAGIC_JONB)(i)?;
 
@@ -60,9 +59,10 @@ fn parse_jonbin_impl(i: &[u8], is_gbvs: bool) -> IResult<&[u8], GGSTJonBin> {
     let (i, names) = count(|i| helpers::take_str_of_size(i, 0x20), name_count as usize)(i)?;
     // dbg!(&names);
 
-    let (i, version) = le_u8(i)?;
-    // dbg!(version);
-    let (i, _) = le_u8(i)?;
+    let (i, version_a) = le_u8(i)?;
+    //dbg!(version_a);
+    let (i, version_b) = le_u8(i)?;
+    //dbg!(version_b);
 
     let (i, _null) = le_u8(i)?;
 
@@ -71,7 +71,7 @@ fn parse_jonbin_impl(i: &[u8], is_gbvs: bool) -> IResult<&[u8], GGSTJonBin> {
     // dbg!(hurtbox_count);
     // dbg!(hitbox_count);
 
-    let (i, mut box_layer_sizes) = version;
+    let (i, mut box_layer_sizes) = count(le_u16, (version_a + version_b * 23) as usize)(i)?;
 
     let (i, editor_data) = count(parse_editor_data, editor_data_count as usize)(i)?;
 
@@ -96,7 +96,8 @@ fn parse_jonbin_impl(i: &[u8], is_gbvs: bool) -> IResult<&[u8], GGSTJonBin> {
 
     let jonbin = GGSTJonBin {
         names: names.into_iter().map(|n| n.to_string()).collect(),
-        version,
+        version_a,
+        version_b,
         editor_data: editor_data.into_iter().map(|x| x.to_vec()).collect(),
         boxes: boxes,
     };
@@ -164,7 +165,7 @@ impl GGSTJonBin {
         // 00 b"JONB"
         // 04 filename count
         // 06..n filenames, fixed 0x20 length string
-        // n version?
+        // n version_a?
         // n+2 null byte? seems to always be 0
         // n+3 u32, number of editor data blocks
         // n+7 big array of u16s for the number of boxes of each category: hurtbox, hitbox, unknown...
@@ -181,9 +182,10 @@ impl GGSTJonBin {
             rebuilt.write_all(&fixed).unwrap();
         });
 
-        rebuilt.write_u16::<LE>(self.version).unwrap();
+        rebuilt.write_u8(self.version_a).unwrap();
+        rebuilt.write_u8(self.version_b).unwrap();
         rebuilt.write_u8(0).unwrap();
-
+        
         rebuilt
             .write_u32::<LE>(self.editor_data.len() as u32)
             .unwrap();
