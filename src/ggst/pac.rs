@@ -1,7 +1,5 @@
 use crate::{helpers, traits::{Pac, Rebuild}};
 
-use serde::{Deserialize, Serialize};
-
 use binrw::{binread, io::SeekFrom, NullString};
 
 #[binread]
@@ -11,7 +9,7 @@ pub struct GGSTPac {
     #[br(temp)]
     data_start: u32,
     #[br(temp)]
-    total_size: u32,
+    _total_size: u32,
     #[br(temp)]
     files_contained: u32,
     // seems to change the way filename hashes are used?
@@ -28,17 +26,16 @@ pub struct GGSTPac {
 #[br(import(string_size: u32, data_start: u32))]
 #[derive(Clone, Debug)]
 pub struct GGSTPacEntry {
-    #[br(pad_size_to = dbg!(string_size), map = |name| dbg!(name))]
+    #[br(pad_size_to = string_size)]
     name: NullString,
-    #[br(map = |id| dbg!(id))]
     id: u32,
-    #[br(temp, map = |offset| dbg!(offset))]
+    #[br(temp)]
     file_offset: u32,
-    #[br(temp, map = |size| dbg!(size))]
+    #[br(temp)]
     file_size: u32,
     #[br(align_after = 0x10)]
     name_hash: u32,
-    #[br(count = dbg!(file_size), restore_position, seek_before = SeekFrom::Start((data_start + file_offset) as u64))]
+    #[br(count = file_size, restore_position, seek_before = SeekFrom::Start((data_start + file_offset) as u64))]
     pub contents: Vec<u8>,
 }
 

@@ -10,6 +10,30 @@ use serde::{Deserialize, Serialize};
 
 use crate::{traits::Palette, Error};
 
+macro_rules! impl_open {
+    ($format:ty) => {
+        impl $format {
+            /// Helper function to open a file and read this type
+            pub fn open(path: impl AsRef<std::path::Path>) -> binrw::BinResult<$format> {
+                use binrw::BinRead;
+                let mut file = binrw::io::BufReader::new(std::fs::File::open(path.as_ref())?);
+
+                <$format>::read(&mut file)
+            }
+        }
+    };
+}
+
+pub(crate) use impl_open;
+
+pub fn arcsys_filename_hash(name: impl AsRef<str>) -> u32 {
+    let lowercase_name = name.as_ref().to_ascii_lowercase();
+
+    lowercase_name.bytes().into_iter().fold(0u32, |hash, c| {
+        (c as u32).wrapping_add(137_u32.wrapping_mul(hash))
+    })
+}
+
 pub fn take_str_of_size(i: &[u8], size: u32) -> IResult<&[u8], String> {
     let (i, bytes) = take(size)(i)?;
     let (_, parsed_string) = map(take_until("\0"), lossy_to_str)(bytes)?;
@@ -113,23 +137,6 @@ pub(crate) fn parse_bgra(i: &[u8]) -> IResult<&[u8], RGBAColor> {
     ));
 }
 
-pub(crate) fn parse_rgba(i: &[u8]) -> IResult<&[u8], RGBAColor> {
-    let (i, red) = le_u8(i)?;
-    let (i, green) = le_u8(i)?;
-    let (i, blue) = le_u8(i)?;
-    let (i, alpha) = le_u8(i)?;
-
-    return Ok((
-        i,
-        RGBAColor {
-            red,
-            green,
-            blue,
-            alpha,
-        },
-    ));
-}
-
 pub(crate) fn parse_argb(i: &[u8]) -> IResult<&[u8], RGBAColor> {
     let (i, alpha) = le_u8(i)?;
     let (i, red) = le_u8(i)?;
@@ -177,7 +184,10 @@ pub struct IndexedImage {
 
 impl Default for IndexedImage {
     fn default() -> Self {
-        Self { palette: Default::default(), image: Default::default() }
+        Self {
+            palette: Default::default(),
+            image: Default::default(),
+        }
     }
 }
 
