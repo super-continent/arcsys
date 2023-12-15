@@ -105,7 +105,7 @@ fn parse_editor_data(i: &[u8]) -> IResult<&[u8], &[u8]> {
     Ok((i, bytes))
 }
 
-fn parse_box(i: &[u8],) -> IResult<&[u8], HitBox> {
+fn parse_box(i: &[u8]) -> IResult<&[u8], HitBox> {
     let (i, kind) = le_u32(i)?;
     let (i, rect) = parse_rect(i)?;
 

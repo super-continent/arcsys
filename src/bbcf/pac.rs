@@ -11,6 +11,7 @@ use nom::{bytes::complete::take, combinator, number::complete::le_u32, IResult};
 
 /// Archive format for BBCF
 #[derive(Serialize, Deserialize)]
+#[deprecated(note = "`arcsys::pac::Pac` replaces this")]
 pub struct BBCFPac {
     pub unknown: u32,
     pub files: Vec<BBCFPacEntry>,
@@ -50,6 +51,7 @@ impl crate::traits::Pac for BBCFPac {
 
 /// A contained file in a [`BBCFPac`] archive.
 #[derive(Serialize, Deserialize)]
+#[deprecated(note = "`arcsys::pac::Pac` replaces this")]
 pub struct BBCFPacEntry {
     /// The file ID
     pub id: u32,

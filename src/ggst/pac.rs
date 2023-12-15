@@ -1,10 +1,14 @@
-use crate::{helpers, traits::{Pac, Rebuild}};
+use crate::{
+    helpers,
+    traits::{Pac, Rebuild},
+};
 
 use binrw::{binread, io::SeekFrom, NullString};
 
 #[binread]
 #[br(little, magic = b"FPAC")]
 #[derive(Clone, Debug)]
+#[deprecated(note = "`arcsys::pac::Pac` replaces this")]
 pub struct GGSTPac {
     #[br(temp)]
     data_start: u32,
@@ -78,8 +82,8 @@ impl Rebuild for GGSTPac {
 }
 
 fn rebuild_pac_impl(pac: &GGSTPac) -> Vec<u8> {
-    use std::io::Write;
     use byteorder::{WriteBytesExt, LE};
+    use std::io::Write;
 
     let mut pac_file: Vec<u8> = Vec::new();
 
