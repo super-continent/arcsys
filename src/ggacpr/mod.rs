@@ -15,8 +15,7 @@ pub mod replay {
     }
 
     #[binread]
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    #[derive(Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct ReplayTime {
         pub year: u16,
         pub month: u8,
@@ -28,8 +27,7 @@ pub mod replay {
 
     #[binread]
     #[br(repr = u8)]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    #[derive(Serialize, Deserialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub enum Character {
         Sol = 1,
         Ky,
@@ -60,8 +58,7 @@ pub mod replay {
 
     #[binread]
     #[br(repr = u8)]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    #[derive(Serialize, Deserialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub enum MatchType {
         Single = 1,
         Team,
@@ -69,8 +66,7 @@ pub mod replay {
 
     #[binread]
     #[br(repr = u8)]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    #[derive(Serialize, Deserialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub enum GameVersion {
         PlusR = 0,
         AccentCore,
@@ -78,8 +74,7 @@ pub mod replay {
 
     #[binread]
     #[br(repr = u8)]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    #[derive(Serialize, Deserialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub enum MatchResult {
         P1Winner = 1,
         P2Winner,
@@ -89,8 +84,7 @@ pub mod replay {
     #[binread]
     // MAGIC signature is this literal on all ACPR replays after Dec. 2021
     #[br(little, magic = b"GGR\x02\x51\xAD\xEE\x77\x45\xD7\x48\xCD")]
-    #[derive(Debug, Clone)]
-    #[derive(Serialize, Deserialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct AcprReplay {
         #[br(temp)]
         _metadata_size: u16,

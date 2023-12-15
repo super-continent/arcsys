@@ -6,7 +6,7 @@ use nom::bytes::complete::tag;
 use nom::number::complete::le_u16;
 use nom::number::complete::le_u32;
 use nom::IResult;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 static MAGIC_HPL: &[u8] = b"HPAL";
 
@@ -62,10 +62,9 @@ fn parse_palette(i: &[u8], size: u32) -> IResult<&[u8], Vec<RGBAColor>> {
     nom::multi::count(helpers::parse_bgra, size as usize)(i)
 }
 
-
 impl BBCFHpl {
     pub fn to_bytes(&self) -> Vec<u8> {
-        use byteorder::{LE, WriteBytesExt};
+        use byteorder::{WriteBytesExt, LE};
         use std::io::Write;
 
         // BBCF palette file structure
@@ -83,8 +82,12 @@ impl BBCFHpl {
 
         final_bytes.write_all(MAGIC_HPL).unwrap();
         final_bytes.write_u32::<LE>(self.version).unwrap();
-        final_bytes.write_u32::<LE>((HEADER_SIZE + (self.palette.len() * 0x4)) as u32).unwrap();
-        final_bytes.write_u32::<LE>(self.palette.len() as u32).unwrap();
+        final_bytes
+            .write_u32::<LE>((HEADER_SIZE + (self.palette.len() * 0x4)) as u32)
+            .unwrap();
+        final_bytes
+            .write_u32::<LE>(self.palette.len() as u32)
+            .unwrap();
 
         // unknown data
         final_bytes.write_u32::<LE>(self.unknown_data.0).unwrap();
@@ -96,7 +99,9 @@ impl BBCFHpl {
         final_bytes.write_u32::<LE>(0x0).unwrap();
 
         // write palette
-        self.palette.iter().for_each(|p| final_bytes.extend(p.to_bgra_slice()));
+        self.palette
+            .iter()
+            .for_each(|p| final_bytes.extend(p.to_bgra_slice()));
 
         final_bytes
     }

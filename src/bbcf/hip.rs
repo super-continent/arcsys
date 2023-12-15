@@ -10,7 +10,7 @@ use byteorder::{WriteBytesExt, LE};
 use nom::{
     bytes::complete::{tag, take},
     error::ErrorKind,
-    number::complete::{le_u32, le_u8, le_u16},
+    number::complete::{le_u16, le_u32, le_u8},
     IResult,
 };
 use serde::{Deserialize, Serialize};

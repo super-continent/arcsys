@@ -1,8 +1,11 @@
-use crate::{helpers::{pad_to_nearest, pad_to_nearest_with_excess, RGBAColor}, Error};
+use crate::{
+    helpers::{pad_to_nearest, pad_to_nearest_with_excess, RGBAColor},
+    Error,
+};
 
 /// Trait that parses a type from some binary data.
 /// This is a wrapper over [`BinRead`] which accepts all types that implement `AsRef<[u8]>`
-pub trait ParseFromBytes: Sized  {
+pub trait ParseFromBytes: Sized {
     /// Parse a type from a slice of bytes
     fn parse<R: AsRef<[u8]>>(bytes: &R) -> Result<Self, Error>;
 }

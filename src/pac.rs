@@ -1,7 +1,11 @@
+//! PAC archive format support for most modern arcsys fighters
+//! Currently rebuilds bit-perfect on most files with edge cases like [`PacStyle::PATH_CUT`]s hash function unsupported
+
 use std::io::{Cursor, Read, SeekFrom};
 
 use binrw::{binread, io::NoSeek, NullString};
 use bitflags::bitflags;
+use byteorder::WriteBytesExt;
 use flate2::read::ZlibDecoder;
 
 use crate::helpers;
@@ -28,6 +32,114 @@ pub struct Pac {
     pub entries: Vec<PacEntry>,
 }
 
+impl Pac {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        fpac_to_bytes(self)
+    }
+}
+
+fn fpac_to_bytes(pac: &Pac) -> Vec<u8> {
+    use std::io::Write;
+
+    use byteorder::LE;
+
+    const HEADER_SIZE: usize = 0x20;
+
+    let mut buffer = Vec::new();
+
+    buffer.write_all(b"FPAC").unwrap();
+
+    let mut meta_buffer: Vec<u8> = Vec::new();
+    let mut file_buffer = Vec::new();
+
+    let string_size = if !pac.pac_style.contains(PacStyle::ID_ONLY) {
+        // max string size including null byte
+        let max = pac
+            .entries
+            .iter()
+            .map(|a| a.name.as_ref().map_or(0, |a| a.len()))
+            .max()
+            .unwrap_or(0);
+
+        if pac.pac_style.contains(PacStyle::VERSION2) {
+            helpers::pad_to_nearest_with_excess(max + 1, 0x20)
+        } else {
+            helpers::pad_to_nearest_with_excess(max + 1, 0x4)
+        }
+    } else {
+        0
+    };
+
+    let entry_count = pac.entries.len();
+
+    for (entry_index, entry) in pac.entries.iter().enumerate() {
+        // write header contents
+
+        if !pac.pac_style.contains(PacStyle::ID_ONLY) {
+            let fixed_name = helpers::string_to_fixed_bytes(
+                entry.name.as_ref().expect("PAC entry should have a name"),
+                string_size,
+            );
+            meta_buffer.write_all(&fixed_name).unwrap();
+        }
+
+        meta_buffer.write_u32::<LE>(entry_index as u32).unwrap();
+        // offset in the file section
+        meta_buffer
+            .write_u32::<LE>(file_buffer.len() as u32)
+            .unwrap();
+        meta_buffer
+            .write_u32::<LE>(entry.contents.len() as u32)
+            .unwrap();
+
+        if pac.pac_style.contains(PacStyle::VERSION2) {
+            meta_buffer
+                .write_u32::<LE>(entry.name_hash() as u32)
+                .unwrap();
+        }
+
+        let padding = if pac.pac_style.contains(PacStyle::HASH_SORT) {
+            0
+        } else {
+            if pac.pac_style.contains(PacStyle::VERSION2) {
+                helpers::needed_to_align(meta_buffer.len(), 0x10)
+            } else {
+                helpers::needed_to_align_with_excess(meta_buffer.len(), 0x10)
+            }
+        };
+
+        (0..padding).for_each(|_| meta_buffer.write_u8(0).unwrap());
+
+        // write file contents and pad
+        file_buffer.write_all(&entry.contents).unwrap();
+
+        let padding = if pac.pac_style.contains(PacStyle::ID_ONLY) {
+            helpers::needed_to_align(file_buffer.len(), 0x4)
+        } else {
+            helpers::needed_to_align(file_buffer.len(), 0x10)
+        };
+        (0..padding).for_each(|_| file_buffer.write_u8(0).unwrap());
+    }
+
+    let header_size = HEADER_SIZE + meta_buffer.len();
+    let total_size = header_size + file_buffer.len();
+
+    buffer.write_u32::<LE>(header_size as u32).unwrap();
+    buffer.write_u32::<LE>(total_size as u32).unwrap();
+    buffer.write_u32::<LE>(entry_count as u32).unwrap();
+    buffer.write_u32::<LE>(pac.pac_style.bits()).unwrap();
+    buffer.write_u32::<LE>(string_size as u32).unwrap();
+
+    // pad to 0x20
+    buffer.write_u64::<LE>(0).unwrap();
+
+    buffer.append(&mut meta_buffer);
+
+    buffer.append(&mut file_buffer);
+
+    buffer
+}
+
 #[binread]
 #[br(magic = b"ZCMP", little)]
 pub struct Zcmp {
@@ -35,7 +147,7 @@ pub struct Zcmp {
     original_size: u32,
     #[br(temp, align_after = 0x10)]
     _compressed_size: u32,
-    #[br(args { count: original_size.try_into().unwrap() }, map_stream = |reader| NoSeek::new(ZlibDecoder::new(reader)) )]
+    #[br(count = original_size, map_stream = |reader| NoSeek::new(ZlibDecoder::new(reader)) )]
     pub data: Vec<u8>,
 }
 
@@ -46,7 +158,7 @@ pub struct DfasFPac {
     original_size: u32,
     #[br(temp, align_after = 0x10)]
     _compressed_size: u32,
-    #[br(args { count: original_size.try_into().unwrap() }, map_stream = |reader| NoSeek::new(ZlibDecoder::new(reader)) )]
+    #[br(count = original_size, map_stream = |reader| NoSeek::new(ZlibDecoder::new(reader)) )]
     pub data: Vec<u8>,
 }
 
@@ -81,16 +193,18 @@ enum InternalPacReader {
         #[br(temp)] u32,
         #[br(
         // same hack again
-        map_stream = |reader| {
-            let mut decoder = ZlibDecoder::new(reader);
-            let mut buf: Vec<u8> = Vec::new();
-            decoder.read_to_end(&mut buf).expect("decoder should read to end");
-            Cursor::new(buf)
-        }
-    )]
+            map_stream = |reader| {
+                let mut decoder = ZlibDecoder::new(reader);
+                let mut buf: Vec<u8> = Vec::new();
+                decoder.read_to_end(&mut buf).expect("decoder should read to end");
+                Cursor::new(buf)
+            }
+        )]
         #[br(args(Compression::DfasFPac))]
         InternalPac,
     ),
+    #[br(magic = b"TXAC", pre_assert(false))]
+    Txac,
 }
 
 impl InternalPacReader {
@@ -99,6 +213,7 @@ impl InternalPacReader {
             Self::Uncompressed(p) => p,
             Self::Zcmp(p) => p,
             Self::DfasFPac(p) => p,
+            Self::Txac => panic!("TXAC is unsupported!"),
         }
     }
 }
@@ -118,7 +233,7 @@ struct InternalPac {
     file_count: u32,
     #[br(map = |x: u32| PacStyle::from_bits_retain(x))]
     pub pac_style: PacStyle,
-    #[br(temp, align_after = 0x10)]
+    #[br(temp, align_after = 0x10, dbg)]
     string_size: u32,
     #[br(args {
         count: file_count as usize,
@@ -131,7 +246,11 @@ struct InternalPac {
 #[derive(Clone)]
 #[br(import(pac_style: PacStyle, string_size: u32, data_start: u32))]
 pub struct PacEntry {
-    #[br(if(!pac_style.intersects(PacStyle::ID_ONLY) && string_size > 0), pad_size_to = string_size, map = |x: Option<NullString>| x.map(|s| s.to_string()) )]
+    #[br(
+        if(!pac_style.intersects(PacStyle::ID_ONLY) && string_size > 0),
+        pad_size_to = string_size,
+        map = |x: Option<NullString>| x.map(|s| encoding_rs::SHIFT_JIS.decode(&s.0).0.into_owned())
+    )]
     pub name: Option<String>,
     #[br(temp)]
     _id: u32,
@@ -148,7 +267,7 @@ pub struct PacEntry {
 impl PacEntry {
     pub fn name_hash(&self) -> u32 {
         if let Some(name) = &self.name {
-            crate::arcsys_filename_hash(name)
+            crate::arcsys_filename_hash(encoding_rs::SHIFT_JIS.encode(name).0)
         } else {
             self.name_hash
         }
@@ -167,6 +286,14 @@ impl std::fmt::Debug for PacEntry {
     }
 }
 
+// enum FPACK_STYLE
+// FPACST_NORMAL    = 0
+// FPACST_AUTOLEN_FILENAME  = 1
+// FPACST_ID_ONLY   = 2
+// FPACST_PATHCUT   = 10h
+// FPACST_LONGNAME  = 20000000h
+// FPACST_HASHSORT  = 40000000h
+// FPACST_VERSION2  = 80000000h
 bitflags! {
     #[derive(Clone, Copy, Debug)]
     pub struct PacStyle: u32 {

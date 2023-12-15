@@ -26,11 +26,11 @@ macro_rules! impl_open {
 
 pub(crate) use impl_open;
 
-pub fn arcsys_filename_hash(name: impl AsRef<str>) -> u32 {
-    let lowercase_name = name.as_ref().to_ascii_lowercase();
+pub fn arcsys_filename_hash(bytes: impl AsRef<[u8]>) -> u32 {
+    let bytes = bytes.as_ref();
 
-    lowercase_name.bytes().into_iter().fold(0u32, |hash, c| {
-        (c as u32).wrapping_add(137_u32.wrapping_mul(hash))
+    bytes.into_iter().fold(0u32, |hash, c| {
+        (*c as u32).wrapping_add(137_u32.wrapping_mul(hash))
     })
 }
 
@@ -55,10 +55,15 @@ pub fn take_null(i: &[u8], amount: usize) -> IResult<&[u8], ()> {
     Ok((i, ()))
 }
 
-/// Turns a string into a fixed-length array of bytes, adding null bytes to meet the required length
-/// Will truncate the input to the desired size if the string is too long
-pub fn string_to_fixed_bytes<T: Into<String>>(string: T, size: usize) -> Vec<u8> {
-    let mut bytes = string.into().bytes().collect::<Vec<u8>>();
+/// Turns a string into a fixed-length array of bytes representing a SHIFT-JIS encoded string.
+/// adding null bytes to meet the required length.
+/// This function will truncate the input to the desired size if the string is too long
+pub fn string_to_fixed_bytes<T: AsRef<str>>(string: T, size: usize) -> Vec<u8> {
+    let mut bytes = encoding_rs::SHIFT_JIS.encode(string.as_ref()).0.to_vec();
+    assert!(
+        bytes.len() < size,
+        "string must be shorter than specified fixed string size"
+    );
 
     bytes.truncate(size);
 

@@ -22,25 +22,36 @@ fn main() -> AResult<()> {
 #[derive(Parser, Debug)]
 struct Cmd {
     #[clap(subcommand)]
-    game: Game,
+    subcmd: Type,
 }
 
 #[derive(Subcommand, Debug)]
-enum Game {
-    /// Dragon Ball Z: Extreme Butoden and One Piece: Pirate Colusseum
-    Dbzop {
+enum Type {
+    /// PAC Archive formats
+    Archive {
         #[command(subcommand)]
-        format: DbzOpType,
+        format: PacType,
     },
     /// Guilty Gear XX Accent Core +R
     Acpr {
         #[command(subcommand)]
         format: AcprType,
     },
+    /// General utilities for things like debugging
+    Utils {
+        #[command(subcommand)]
+        util: Utility,
+    },
 }
 
 #[derive(Subcommand, Debug)]
-enum DbzOpType {
+enum Utility {
+    /// Hash bytes (e.g. `0xABCDABCD`) using the arcsys filename hash function
+    Hash { bytes: String },
+}
+
+#[derive(Subcommand, Debug)]
+enum PacType {
     Pac {
         #[command(subcommand)]
         action: FileAction,
@@ -90,22 +101,22 @@ struct FileActionArgs {
 
 fn run() -> AResult<()> {
     let args = Cmd::parse();
-    match args.game {
-        Game::Dbzop { format } => match format {
-            DbzOpType::Pac { action } => match action {
-                FileAction::Parse { args } => dbzop_parse_pac(args),
+    match args.subcmd {
+        Type::Archive { format } => match format {
+            PacType::Pac { action } => match action {
+                FileAction::Parse { args } => parse_pac(args),
                 FileAction::Rebuild { args: _ } => todo!(),
             },
-            DbzOpType::Zcmp { action } => match action {
+            PacType::Zcmp { action } => match action {
                 FileAction::Parse { args } => parse_zcmp(args),
                 FileAction::Rebuild { args: _ } => todo!(),
             },
-            DbzOpType::Dfaspac { action } => match action {
+            PacType::Dfaspac { action } => match action {
                 FileAction::Parse { args } => parse_dfasfpac(args),
                 FileAction::Rebuild { args: _ } => todo!(),
             },
         },
-        Game::Acpr { format } => match format {
+        Type::Acpr { format } => match format {
             AcprType::Ggr { action } => match action {
                 FileAction::Parse { args } => parse_ggr(args),
                 FileAction::Rebuild { args: _ } => {
@@ -113,13 +124,29 @@ fn run() -> AResult<()> {
                 }
             },
         },
+        Type::Utils { util } => match util {
+            Utility::Hash { bytes } => {
+                let bytes = bytes.trim_start_matches("0x").replace(" ", "");
+                if bytes.len() % 2 != 0 || !bytes.chars().all(|x| x.is_ascii_hexdigit()) {
+                    return Err(anyhow::anyhow!("Invalid bytes"));
+                }
+
+                let bytes = hex::decode(bytes)?;
+                println!(
+                    "ArcSys filename hash of data: 0x{:X}",
+                    arcsys::arcsys_filename_hash(&bytes)
+                );
+
+                Ok(())
+            }
+        },
     }
 }
 
 use std::fs::File;
 
-fn dbzop_parse_pac(args: FileActionArgs) -> AResult<()> {
-    let pac = arcsys::dbzop::Pac::open(args.file_in)?;
+fn parse_pac(args: FileActionArgs) -> AResult<()> {
+    let pac = arcsys::pac::Pac::open(args.file_in)?;
 
     println!("{:X}: {:?}", pac.pac_style.bits(), pac.pac_style);
 
@@ -127,7 +154,7 @@ fn dbzop_parse_pac(args: FileActionArgs) -> AResult<()> {
 }
 
 fn parse_zcmp(args: FileActionArgs) -> AResult<()> {
-    let pac = arcsys::dbzop::Zcmp::open(&args.file_in)?;
+    let pac = arcsys::pac::Zcmp::open(&args.file_in)?;
 
     if let Some(out_path) = args.file_out {
         write_file(out_path, args.overwrite, &pac.data)?;
@@ -137,7 +164,7 @@ fn parse_zcmp(args: FileActionArgs) -> AResult<()> {
 }
 
 fn parse_dfasfpac(args: FileActionArgs) -> AResult<()> {
-    let pac = arcsys::dbzop::DfasFPac::open(args.file_in)?;
+    let pac = arcsys::pac::DfasFPac::open(args.file_in)?;
 
     if let Some(out_path) = args.file_out {
         write_file(out_path, args.overwrite, &pac.data)?;
