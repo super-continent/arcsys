@@ -8,7 +8,7 @@ use bitflags::bitflags;
 use byteorder::WriteBytesExt;
 use flate2::read::ZlibDecoder;
 
-use crate::helpers;
+use crate::{arcsys_filename_hash, helpers};
 
 helpers::impl_open!(Pac);
 helpers::impl_open!(Zcmp);
@@ -57,7 +57,7 @@ fn fpac_to_bytes(pac: &Pac) -> Vec<u8> {
         let max = pac
             .entries
             .iter()
-            .map(|a| a.name.as_ref().map_or(0, |a| a.len()))
+            .map(|a| a.name().map_or(0, |a| a.len()))
             .max()
             .unwrap_or(0);
 
@@ -77,7 +77,7 @@ fn fpac_to_bytes(pac: &Pac) -> Vec<u8> {
 
         if !pac.pac_style.contains(PacStyle::ID_ONLY) {
             let fixed_name = helpers::string_to_fixed_bytes(
-                entry.name.as_ref().expect("PAC entry should have a name"),
+                entry.name().expect("PAC entry should have a name"),
                 string_size,
             );
             meta_buffer.write_all(&fixed_name).unwrap();
@@ -93,9 +93,7 @@ fn fpac_to_bytes(pac: &Pac) -> Vec<u8> {
             .unwrap();
 
         if pac.pac_style.contains(PacStyle::VERSION2) {
-            meta_buffer
-                .write_u32::<LE>(entry.name_hash() as u32)
-                .unwrap();
+            meta_buffer.write_u32::<LE>(entry.hash_id()).unwrap();
         }
 
         let padding = if pac.pac_style.contains(PacStyle::HASH_SORT) {
@@ -242,44 +240,77 @@ struct InternalPac {
     pub entries: Vec<PacEntry>,
 }
 
+#[derive(Clone)]
+enum EntryIdentifier {
+    Name(String),
+    Hash(u32),
+}
+
 #[binread]
 #[derive(Clone)]
 #[br(import(pac_style: PacStyle, string_size: u32, data_start: u32))]
 pub struct PacEntry {
     #[br(
+        temp,
         if(!pac_style.intersects(PacStyle::ID_ONLY) && string_size > 0),
         pad_size_to = string_size,
         map = |x: Option<NullString>| x.map(|s| encoding_rs::SHIFT_JIS.decode(&s.0).0.into_owned())
     )]
-    pub name: Option<String>,
+    name: Option<String>,
     #[br(temp)]
     _id: u32,
     #[br(temp)]
     file_offset: u32,
     #[br(temp)]
     file_size: u32,
-    #[br(align_after = 0x10)]
-    name_hash: u32,
+    #[br(temp, align_after = 0x10)]
+    hash: u32,
+    #[br(calc(name.map(|x| EntryIdentifier::Name(x)).unwrap_or(EntryIdentifier::Hash(hash))))]
+    identifier: EntryIdentifier,
     #[br(count = file_size, restore_position, seek_before = SeekFrom::Start((data_start + file_offset) as u64))]
     pub contents: Vec<u8>,
 }
 
 impl PacEntry {
-    pub fn name_hash(&self) -> u32 {
-        if let Some(name) = &self.name {
-            crate::arcsys_filename_hash(encoding_rs::SHIFT_JIS.encode(name).0)
-        } else {
-            self.name_hash
+    pub fn new_named(name: String, contents: impl Into<Vec<u8>>) -> Self {
+        Self {
+            identifier: EntryIdentifier::Name(name),
+            contents: contents.into(),
         }
+    }
+
+    /// Create a new PacEntry that does not have a set filename, only using a hash for identification
+    pub fn new_unnamed(hash: u32, contents: Vec<u8>) -> Self {
+        Self {
+            identifier: EntryIdentifier::Hash(hash),
+            contents,
+        }
+    }
+
+    /// Get the hash identifier for the entry, usually a hash of the filename, unkown for ID_ONLY pacs
+    pub fn hash_id(&self) -> u32 {
+        match self.identifier {
+            EntryIdentifier::Name(ref name) => arcsys_filename_hash(name),
+            EntryIdentifier::Hash(hash) => hash,
+        }
+    }
+
+    /// Get the filename of the entry, returns None if the entry is for an ID_ONLY pac
+    pub fn name(&self) -> Option<&str> {
+        if let EntryIdentifier::Name(ref name) = self.identifier {
+            return Some(name);
+        }
+
+        None
     }
 }
 
 impl std::fmt::Debug for PacEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PacEntry")
-            .field("name", &format_args!("{:?}", self.name))
+            .field("name", &format_args!("{:?}", self.name()))
             // always represent has as a 4-byte hexadecimal value
-            .field("name_hash", &format_args!("0x{:0>8X}", &self.name_hash))
+            .field("hash", &format_args!("0x{:0>8X}", self.hash_id()))
             // exclude vec contents and just list size
             .field("file_size", &self.contents.len())
             .finish_non_exhaustive()
