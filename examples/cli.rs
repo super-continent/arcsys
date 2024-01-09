@@ -1,7 +1,4 @@
-use std::{
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::{fs, io::Write, path::{Path, PathBuf}};
 
 use anyhow::Result as AResult;
 use arcsys::{arcsys_filename_hash, ggacpr::replay::AcprReplay};
@@ -32,6 +29,11 @@ enum Type {
         #[command(subcommand)]
         format: PacType,
     },
+    /// Guilty Gear XX
+    Bin {
+        #[command(subcommand)]
+        format: BinType,
+    },
     /// Guilty Gear XX Accent Core +R
     Acpr {
         #[command(subcommand)]
@@ -61,6 +63,14 @@ enum PacType {
         action: FileAction,
     },
     Dfaspac {
+        #[command(subcommand)]
+        action: FileAction,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum BinType {
+    Obj {
         #[command(subcommand)]
         action: FileAction,
     },
@@ -116,6 +126,14 @@ fn run() -> AResult<()> {
                 FileAction::Rebuild { args: _ } => todo!(),
             },
         },
+        Type::Bin { format } => match format {
+            BinType::Obj { action } => match action {
+                FileAction::Parse { args } => parse_obj(args),
+                FileAction::Rebuild { args: _ } => {
+                    unimplemented!("Object bin rebuilding isn't implemented.")
+                }
+            }
+        }
         Type::Acpr { format } => match format {
             AcprType::Ggr { action } => match action {
                 FileAction::Parse { args } => parse_ggr(args),
@@ -144,6 +162,7 @@ fn run() -> AResult<()> {
 }
 
 use std::fs::File;
+use arcsys::ggacpr::obj::GGXXObjBin;
 
 fn parse_pac(args: FileActionArgs) -> AResult<()> {
     let pac = arcsys::pac::Pac::open(args.file_in)?;
@@ -173,6 +192,86 @@ fn parse_dfasfpac(args: FileActionArgs) -> AResult<()> {
     Ok(())
 }
 
+fn parse_obj(args: FileActionArgs) -> AResult<()> {
+    let obj = GGXXObjBin::open(args.file_in)?;
+
+    if let Some(out_path) = args.file_out {
+        for (j, cell) in obj.player.cell_array.cell_entries.iter().enumerate() {
+            write_file(
+                out_path.join(format!("player/cells/cell_{}.json", j)),
+                args.overwrite,
+                serde_json::to_string_pretty(&cell)?.as_bytes(),
+            )?;
+        }
+        for (j, sprite) in obj.player.sprite_array.sprite_entries.iter().enumerate() {
+            let vec32 = &sprite.data;
+
+            let byte_array = unsafe { vec32.align_to::<u8>().1 };
+
+            write_file(
+                out_path.join(format!("player/sprites/sprite_{}.bin", j)),
+                args.overwrite,
+                byte_array,
+            )?;
+        }
+
+        let vec16 = &obj.player.script_data;
+        let byte_array = unsafe { vec16.align_to::<u8>().1 };
+
+        write_file(
+            out_path.join(format!("player/script.bin")),
+            args.overwrite,
+            byte_array,
+        )?;
+
+        for (j, palette) in obj.player.palette_array.palette_entries.iter().enumerate() {
+            write_file(
+                out_path.join(format!("player_palno{}.json", j)),
+                args.overwrite,
+                bincode::serialize(&palette).unwrap(),
+            )?;
+        }
+
+        for (i, game_object) in obj.objects.iter().enumerate() {
+            for (j, cell) in game_object.cell_array.cell_entries.iter().enumerate() {
+                write_file(
+                    out_path.join(format!("objno{}/cells/cell_{}.json", i, j)),
+                    args.overwrite,
+                    serde_json::to_string_pretty(&cell)?.as_bytes(),
+                )?;
+            }
+            for (j, sprite) in game_object.sprite_array.sprite_entries.iter().enumerate() {
+                let vec32 = &sprite.data;
+
+                let byte_array = unsafe { vec32.align_to::<u8>().1 };
+
+                write_file(
+                    out_path.join(format!("objno{}/sprites/sprite_{}.bin", i, j)),
+                    args.overwrite,
+                    byte_array,
+                )?;
+            }
+
+            let vec16 = &game_object.script_data;
+            let byte_array = unsafe { vec16.align_to::<u8>().1 };
+
+            write_file(
+                out_path.join(format!("objno{}/script.bin", i)),
+                args.overwrite,
+                byte_array,
+            )?;
+        }
+
+        write_file(
+            out_path.join(format!("player/unk_section.bin")),
+            args.overwrite,
+            obj.unk_section,
+        )?;
+    }
+
+    Ok(())
+}
+
 fn parse_ggr(args: FileActionArgs) -> AResult<()> {
     let ggr = AcprReplay::open(args.file_in)?;
 
@@ -196,6 +295,7 @@ fn write_file(out_path: impl AsRef<Path>, overwrite: bool, data: impl AsRef<[u8]
         ));
     }
 
+    fs::create_dir_all(out_path.parent().unwrap())?;
     File::create(out_path)?.write_all(data.as_ref())?;
 
     Ok(())
