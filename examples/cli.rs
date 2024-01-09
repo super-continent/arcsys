@@ -226,7 +226,7 @@ fn parse_obj(args: FileActionArgs) -> AResult<()> {
 
         for (j, palette) in obj.player.palette_array.palette_entries.iter().enumerate() {
             write_file(
-                out_path.join(format!("player_palno{}.json", j)),
+                out_path.join(format!("palette/pal_{}.bin", j)),
                 args.overwrite,
                 bincode::serialize(&palette).unwrap(),
             )?;

@@ -48,9 +48,14 @@ pub struct GGXXObjBin {
         seek_before(SeekFrom::Start(0))
     )]
     pub objects: Vec<GGXXObjEntry>,
+    #[br(temp)]
     #[br(
-        seek_before(SeekFrom::Start(unk_offset)),
-        parse_with = until_eof
+        seek_before(SeekFrom::Start(unk_offset - 8)),
+    )]
+    unk_ptr: u32,
+    #[br(
+        parse_with = until_eof,
+        seek_before(SeekFrom::Start(unk_ptr as u64))
     )]
     pub unk_section: Vec<u8>,
 }
