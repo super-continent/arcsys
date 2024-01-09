@@ -215,13 +215,10 @@ fn parse_obj(args: FileActionArgs) -> AResult<()> {
             )?;
         }
 
-        let vec16 = &obj.player.script_data;
-        let byte_array = unsafe { vec16.align_to::<u8>().1 };
-
         write_file(
-            out_path.join(format!("player/script.bin")),
+            out_path.join("player/script.json".to_string()),
             args.overwrite,
-            byte_array,
+            serde_json::to_string_pretty(&obj.player.script_data)?.as_bytes(),
         )?;
 
         for (j, palette) in obj.player.palette_array.palette_entries.iter().enumerate() {
@@ -252,13 +249,10 @@ fn parse_obj(args: FileActionArgs) -> AResult<()> {
                 )?;
             }
 
-            let vec16 = &game_object.script_data;
-            let byte_array = unsafe { vec16.align_to::<u8>().1 };
-
             write_file(
-                out_path.join(format!("objno{}/script.bin", i)),
+                out_path.join(format!("objno{}/script.json", i)),
                 args.overwrite,
-                byte_array,
+                serde_json::to_string_pretty(&game_object.script_data)?.as_bytes(),
             )?;
         }
 

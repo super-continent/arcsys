@@ -1,11 +1,13 @@
 //! Object binary format for all XX-series Guilty Gears
+
 use std::io::SeekFrom;
-use binrw::{binread, FilePtr};
+use binrw::binread;
 use binrw::file_ptr::parse_from_iter;
-use binrw::helpers::{until, until_eof, until_exclusive};
+use binrw::helpers::{until_eof, until_exclusive};
 use serde::{Deserialize, Serialize};
 use crate::helpers;
 use std::iter::Peekable;
+use crate::ggacpr::script::{GGXXObjScriptData, GGXXPlayerScriptData};
 
 struct SkipLastIterator<I: Iterator>(Peekable<I>);
 impl<I: Iterator> Iterator for SkipLastIterator<I> {
@@ -78,11 +80,8 @@ pub struct GGXXPlayerEntry {
     pub cell_array: GGXXCellArray,
     #[br(seek_before(SeekFrom::Start(data_offset + sprite_pointer as u64)))]
     pub sprite_array: GGXXSpriteArray,
-    #[br(
-        seek_before(SeekFrom::Start(data_offset + script_pointer as u64)),
-        parse_with = until(|&dword| dword == 0xffff)
-    )]
-    pub script_data: Vec<u16>,
+    #[br(seek_before(SeekFrom::Start(data_offset + script_pointer as u64)))]
+    pub script_data: GGXXPlayerScriptData,
     #[br(seek_before(SeekFrom::Start(data_offset + palette_pointer as u64)))]
     pub palette_array: GGXXPaletteArray,
 }
@@ -105,11 +104,8 @@ pub struct GGXXObjEntry {
     pub cell_array: GGXXCellArray,
     #[br(seek_before(SeekFrom::Start(data_offset + sprite_pointer as u64)))]
     pub sprite_array: GGXXSpriteArray,
-    #[br(
-        seek_before(SeekFrom::Start(data_offset + script_pointer as u64)),
-        parse_with = until_exclusive(|&dword| dword == 0xffff)
-    )]
-    pub script_data: Vec<u16>,
+    #[br(seek_before(SeekFrom::Start(data_offset + script_pointer as u64)))]
+    pub script_data: GGXXObjScriptData,
 }
 
 #[binread]
