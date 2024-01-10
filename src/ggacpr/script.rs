@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Serialize, Deserialize)]
 pub struct GGXXPlayerScriptData {
     pub play_data: PlayData,
+    #[br(count = 0xB0)]
+    pub unk_data: Vec<u8>,
     #[br(
         parse_with = until(|action: &ScriptAction| matches!(action.instructions.last().unwrap(), ScriptInstruction::ScriptEnd { .. }))
     )]
@@ -66,13 +68,11 @@ pub struct PlayData {
     pub guardbalance_defense: i16,
     pub guardbalance_tension: i16,
     pub instantblock_tension: i16,
-    #[br(count = 0xB0)]
-    unk_data: Vec<u8>,
 }
 
 #[binread]
 #[derive(Copy, Clone, Serialize, Deserialize)]
-enum ScriptInstruction {
+pub enum ScriptInstruction {
     #[br(magic(0u8))]
     CellBegin {
         duration: u8,
@@ -189,6 +189,11 @@ enum ScriptInstruction {
         flag: u8,
         arg: u16,
     },
+    #[br(magic(20u8))]
+    Unk20 {
+        flag: u8,
+        arg: u16,
+    },
     #[br(magic(25u8))]
     InitInstance {
         #[br(temp)]
@@ -260,6 +265,11 @@ enum ScriptInstruction {
     JumpCell {
         flag: u8,
         arg: u16,
+    },
+    #[br(magic(40u8))]
+    PosZ {
+        flag: u8,
+        z: u16,
     },
     #[br(magic(45u8))]
     Unk45 {
@@ -532,7 +542,7 @@ enum ScriptInstruction {
 
 #[binread]
 #[derive(Clone, Serialize, Deserialize)]
-struct ScriptAction {
+pub struct ScriptAction {
     #[br(parse_with = until(|&inst| match inst {
         ScriptInstruction::ActionEnd { .. } => true,
         ScriptInstruction::ScriptEnd { .. } => true,

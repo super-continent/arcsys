@@ -129,9 +129,7 @@ fn run() -> AResult<()> {
         Type::Bin { format } => match format {
             BinType::Obj { action } => match action {
                 FileAction::Parse { args } => parse_obj(args),
-                FileAction::Rebuild { args: _ } => {
-                    unimplemented!("Object bin rebuilding isn't implemented.")
-                }
+                FileAction::Rebuild { args } => rebuild_obj(args),
             }
         }
         Type::Acpr { format } => match format {
@@ -260,6 +258,20 @@ fn parse_obj(args: FileActionArgs) -> AResult<()> {
             out_path.join(format!("player/unk_section.bin")),
             args.overwrite,
             obj.unk_section,
+        )?;
+    }
+
+    Ok(())
+}
+
+fn rebuild_obj(args: FileActionArgs) -> AResult<()> {
+    let obj = GGXXObjBin::open(args.file_in)?;
+
+    if let Some(out_path) = args.file_out {
+        write_file(
+            out_path,
+            args.overwrite,
+            obj.to_bytes(),
         )?;
     }
 
