@@ -207,9 +207,6 @@ fn parse_obj(args: FileActionArgs) -> AResult<()> {
             let mut byte_array = unsafe { &sprite.header.align_to::<u8>().1 }.to_vec();
             byte_array.append(&mut sprite.hack_fix.clone());
             byte_array.append(&mut sprite.data.clone());
-            for _ in 0..8 {
-                byte_array.push(0);
-            }
 
             write_file(
                 out_path.join(format!("player/sprites/sprite_{}.bin", j)),
@@ -259,9 +256,6 @@ fn parse_obj(args: FileActionArgs) -> AResult<()> {
                 let mut byte_array = unsafe { &sprite.header.align_to::<u8>().1 }.to_vec();
                 byte_array.append(&mut sprite.hack_fix.clone());
                 byte_array.append(&mut sprite.data.clone());
-                for _ in 0..8 {
-                    byte_array.push(0);
-                }
 
                 write_file(
                     out_path.join(format!("objno{}/sprites/sprite_{}.bin", i, j)),
@@ -312,7 +306,20 @@ fn rebuild_obj(args: FileActionArgs) -> AResult<()> {
     let mut player_sprite_index: usize = 0;
 
     for _ in player_sprite_paths {
-        let sprite = GGXXSpriteData::open(args.file_in.join(format!("player/sprites/sprite_{}.bin", player_sprite_index)))?;
+        let buffer = fs::read(args.file_in.join(format!("player/sprites/sprite_{}.bin", player_sprite_index)))?;
+
+        let mut header: Vec<u16> = unsafe { &buffer.align_to::<u16>().1 }.to_vec();
+        header.truncate(8);
+
+        let hack_fix: Vec<u8> = buffer[16..64].to_vec();
+        let data: Vec<u8> = buffer[64..].to_vec();
+
+        let sprite: GGXXSpriteData = GGXXSpriteData {
+            header,
+            hack_fix,
+            data
+        };
+
         player_sprite_entries.push(sprite);
         player_sprite_index += 1;
     }
@@ -384,7 +391,20 @@ fn rebuild_obj(args: FileActionArgs) -> AResult<()> {
         let mut obj_sprite_index: usize = 0;
 
         for _ in obj_sprite_paths {
-            let sprite = GGXXSpriteData::open(path.join(format!("sprites/sprite_{}.bin", obj_sprite_index)))?;
+            let buffer = fs::read(path.join(format!("sprites/sprite_{}.bin", obj_sprite_index)))?;
+
+            let mut header: Vec<u16> = unsafe { &buffer.align_to::<u16>().1 }.to_vec();
+            header.truncate(8);
+
+            let hack_fix: Vec<u8> = buffer[16..64].to_vec();
+            let data: Vec<u8> = buffer[64..].to_vec();
+
+            let sprite: GGXXSpriteData = GGXXSpriteData {
+                header,
+                hack_fix,
+                data
+            };
+
             obj_sprite_entries.push(sprite);
             obj_sprite_index += 1;
         }

@@ -441,12 +441,6 @@ pub struct GGXXSpriteData {
     #[br(count = 0x30)]
     pub hack_fix: Vec<u8>,
     #[br(parse_with = sprite_data_parser)]
-    /*#[br(parse_with = until_exclusive(|&dword|
-        (dword & 0xFFFF == 1 || dword & 0xFFFF == 5)
-            && ((dword >> 16) as u16 % 4 == 0u16)
-            && ((dword >> 16) <= 32u32)
-        || dword & 0xFFFF == 1253 && (dword >> 16) as u16 % 5 == 0u16
-        && (dword >> 16) as u16 <= 1000))]*/
     pub data: Vec<u8>,
 }
 
