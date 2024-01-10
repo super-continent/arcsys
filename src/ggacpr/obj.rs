@@ -1,7 +1,7 @@
 //! Object binary format for all XX-series Guilty Gears
 
 use std::io::SeekFrom;
-use binrw::binread;
+use binrw::{binread, BinRead, BinResult};
 use binrw::file_ptr::parse_from_iter;
 use binrw::helpers::{until_eof, until_exclusive};
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,8 @@ trait SkipLast: Iterator + Sized {
 impl<I: Iterator> SkipLast for I {}
 
 helpers::impl_open!(GGXXObjBin);
+helpers::impl_open!(GGXXSpriteData);
+helpers::impl_open!(GGXXPaletteEntry);
 
 #[binread]
 #[br(little, stream = s)]
@@ -44,7 +46,7 @@ pub struct GGXXObjBin {
     )]
     obj_pointers: Vec<u32>,
     #[br(try_calc = s.stream_position())]
-    unk_offset: u64,
+    pub unk_offset: u64,
     #[br(
         parse_with = parse_from_iter(obj_pointers.iter().skip_last().copied()),
         seek_before(SeekFrom::Start(0))
@@ -85,7 +87,7 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
 
     for cell in obj.player.cell_array.cell_entries.iter() {
         player_cell_pointers.push(
-            (obj.player.cell_array.cell_entries.len() * 4 + player_cell_buffer.len()) as u32);
+            (obj.player.cell_array.cell_entries.len() * 4 + player_cell_buffer.len() + padding) as u32);
         let mut cell_bin : Vec<u8> = Vec::new();
 
         cell_bin.append(&mut (cell.boxes.len() as u32).to_le_bytes().to_vec());
@@ -104,6 +106,12 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
         cell_bin.append(&mut cell.sprite_info.index.to_le_bytes().to_vec());
 
         player_cell_buffer.append(&mut cell_bin);
+
+        let padding = helpers::needed_to_align(player_cell_buffer.len(), 0x4);
+        (0..padding).for_each(|_| player_cell_buffer.push(0x00));
+
+        let padding = helpers::needed_to_align(player_cell_buffer.len(), 0x10);
+        (0..padding).for_each(|_| player_cell_buffer.push(0xFF));
     };
 
     (0..padding / 4).for_each(|_| player_cell_pointers.push(0xFFFFFFFF));
@@ -116,14 +124,17 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
     let mut player_sprite_pointers: Vec<u32> = Vec::new();
     let mut player_sprite_buffer = Vec::new();
 
-    let padding = helpers::needed_to_align(obj.player.sprite_array.sprite_entries.len() * 4, 0x10);
+    let mut padding = helpers::needed_to_align(obj.player.sprite_array.sprite_entries.len() * 4, 0x10);
+    if padding == 0 {
+        padding = 0x10;
+    }
 
     for sprite in obj.player.sprite_array.sprite_entries.iter() {
         player_sprite_pointers.push(
             (obj.player.sprite_array.sprite_entries.len() * 4 + player_sprite_buffer.len() + padding) as u32);
-        let vec32 = &sprite.data;
-        let mut byte_array = unsafe { vec32.align_to::<u8>().1 }.to_vec();
-        player_sprite_buffer.append(&mut byte_array);
+        player_sprite_buffer.append(&mut unsafe { &sprite.header.align_to::<u8>().1 }.to_vec());
+        player_sprite_buffer.append(&mut sprite.hack_fix.clone());
+        player_sprite_buffer.append(&mut sprite.data.clone());
 
         let padding = helpers::needed_to_align(player_sprite_buffer.len(), 0x10);
         (0..padding).for_each(|_| player_sprite_buffer.push(0xFF));
@@ -135,59 +146,16 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
         (0x20 + player_cell_pointers.len() * 4 + player_cell_buffer.len()
             + player_sprite_pointers.len() * 4 + player_sprite_buffer.len()) as u32);
 
-    let mut play_data_buffer: Vec<u16> = Vec::new();
+    let play_data_buffer: Vec<u16> = Vec::new();
 
-    let play_data = &obj.player.script_data.play_data;
-    {
-        play_data_buffer.push((play_data.unk as u16) << 8 | 0xE5);
-        play_data_buffer.push(play_data.fwalk_vel as u16);
-        play_data_buffer.push(play_data.bwalk_vel as u16);
-        play_data_buffer.push(play_data.fdash_init_vel as u16);
-        play_data_buffer.push(play_data.bdash_x_vel as u16);
-        play_data_buffer.push(play_data.bdash_y_vel as u16);
-        play_data_buffer.push(play_data.bdash_gravity as u16);
-        play_data_buffer.push(play_data.fjump_x_vel as u16);
-        play_data_buffer.push(play_data.bjump_x_vel as u16);
-        play_data_buffer.push(play_data.jump_y_vel as u16);
-        play_data_buffer.push(play_data.jump_gravity as u16);
-        play_data_buffer.push(play_data.fsuperjump_x_vel as u16);
-        play_data_buffer.push(play_data.bsuperjump_x_vel as u16);
-        play_data_buffer.push(play_data.superjump_y_vel as u16);
-        play_data_buffer.push(play_data.superjump_gravity as u16);
-        play_data_buffer.push(play_data.fdash_accel as u16);
-        play_data_buffer.push(play_data.fdash_reduce as u16);
-        play_data_buffer.push(play_data.init_homingjump_y_vel as u16);
-        play_data_buffer.push(play_data.init_homingjump_x_vel as u16);
-        play_data_buffer.push(play_data.init_homingjump_x_reduce as u16);
-        play_data_buffer.push(play_data.init_homingjump_y_offset as u16);
-        play_data_buffer.push(play_data.airdash_minimum_height as u16);
-        play_data_buffer.push(play_data.fairdash_time as u16);
-        play_data_buffer.push(play_data.bairdash_time as u16);
-        play_data_buffer.push(play_data.stun_res as u16);
-        play_data_buffer.push(play_data.defense as u16);
-        play_data_buffer.push(play_data.guts as u16);
-        play_data_buffer.push(play_data.critical as u16);
-        play_data_buffer.push(play_data.weight as u16);
-        play_data_buffer.push(play_data.airdash_count as u16);
-        play_data_buffer.push(play_data.airjump_count as u16);
-        play_data_buffer.push(play_data.fairdash_no_attack_time as u16);
-        play_data_buffer.push(play_data.bairdash_no_attack_time as u16);
-        play_data_buffer.push(play_data.fwalk_tension as u16);
-        play_data_buffer.push(play_data.fjump_tension as u16);
-        play_data_buffer.push(play_data.fdash_tension as u16);
-        play_data_buffer.push(play_data.fairdash_tension as u16);
-        play_data_buffer.push(play_data.guardbalance_defense as u16);
-        play_data_buffer.push(play_data.guardbalance_tension as u16);
-        play_data_buffer.push(play_data.instantblock_tension as u16);
-    }
+    let mut player_script_buffer = bincode::serialize(&&obj.player.script_data.play_data).unwrap();
+    player_script_buffer.insert(0, 0xE5);
 
-    let mut player_script_buffer = Vec::new();
     player_script_buffer.append(&mut unsafe { play_data_buffer.align_to::<u8>().1 }.to_vec());
     player_script_buffer.append(&mut obj.player.script_data.unk_data.clone());
     for action in obj.player.script_data.actions.iter() {
         for instruction in action.instructions.iter() {
-            let mut instruction_buffer = bincode::serialize(&instruction).unwrap();
-            player_script_buffer.append(&mut instruction_buffer);
+            player_script_buffer.append(&mut instruction.to_bytes());
         }
     }
 
@@ -215,7 +183,19 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
     for palette in obj.player.palette_array.palette_entries.iter() {
         player_palette_pointers.push(
             (obj.player.palette_array.palette_entries.len() * 4 + player_palette_buffer.len() + padding) as u32);
-        player_palette_buffer.append(&mut bincode::serialize(&palette).unwrap());
+
+        player_palette_buffer.append(&mut palette.unk.to_le_bytes().to_vec());
+        player_palette_buffer.append(&mut palette.unk1.to_le_bytes().to_vec());
+        player_palette_buffer.append(&mut palette.unk2.to_le_bytes().to_vec());
+        player_palette_buffer.append(&mut palette.unk3.to_le_bytes().to_vec());
+        player_palette_buffer.append(&mut palette.unk4.to_le_bytes().to_vec());
+        player_palette_buffer.append(&mut palette.unk5.to_le_bytes().to_vec());
+        player_palette_buffer.append(&mut palette.unk6.to_le_bytes().to_vec());
+        player_palette_buffer.append(&mut palette.unk7.to_le_bytes().to_vec());
+
+        for color in palette.palette.iter() {
+            player_palette_buffer.append(&mut color.to_le_bytes().to_vec());
+        }
 
         let padding = helpers::needed_to_align(player_palette_buffer.len(), 0x10);
         (0..padding).for_each(|_| player_palette_buffer.push(0xFF));
@@ -272,6 +252,12 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
             cell_bin.append(&mut cell.sprite_info.index.to_le_bytes().to_vec());
 
             game_object_cell_buffer.append(&mut cell_bin);
+
+            let padding = helpers::needed_to_align(game_object_cell_buffer.len(), 0x4);
+            (0..padding).for_each(|_| game_object_cell_buffer.push(0x00));
+
+            let padding = helpers::needed_to_align(game_object_cell_buffer.len(), 0x10);
+            (0..padding).for_each(|_| game_object_cell_buffer.push(0xFF));
         };
 
         (0..padding / 4).for_each(|_| game_object_cell_pointers.push(0xFFFFFFFF));
@@ -289,9 +275,9 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
         for sprite in game_object.sprite_array.sprite_entries.iter() {
             game_object_sprite_pointers.push(
                 (game_object.sprite_array.sprite_entries.len() * 4 + game_object_sprite_buffer.len() + padding) as u32);
-            let vec32 = &sprite.data;
-            let mut byte_array = unsafe { vec32.align_to::<u8>().1 }.to_vec();
-            game_object_sprite_buffer.append(&mut byte_array);
+            game_object_sprite_buffer.append(&mut unsafe { &sprite.header.align_to::<u8>().1 }.to_vec());
+            game_object_sprite_buffer.append(&mut sprite.hack_fix.clone());
+            game_object_sprite_buffer.append(&mut sprite.data.clone());
 
             let padding = helpers::needed_to_align(game_object_sprite_buffer.len(), 0x10);
             (0..padding).for_each(|_| game_object_sprite_buffer.push(0xFF));
@@ -306,8 +292,7 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
         let mut game_object_script_buffer = Vec::new();
         for action in game_object.script_data.actions.iter() {
             for instruction in action.instructions.iter() {
-                let mut instruction_buffer = bincode::serialize(&instruction).unwrap();
-                game_object_script_buffer.append(&mut instruction_buffer);
+                game_object_script_buffer.append(&mut instruction.to_bytes());
             }
         }
 
@@ -316,7 +301,10 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
         } else {
             0xA00 - game_object_script_buffer.len() % 0x1000
         };
-        (0..script_padding).for_each(|_| game_object_sprite_buffer.push(0x00));
+
+        (0..script_padding).for_each(|_| game_object_script_buffer.push(0x00));
+
+        game_object_pointers.push(0xFFFFFFFF);
 
         obj_buffer.append(&mut unsafe { game_object_pointers.align_to::<u8>().1 }.to_vec());
         obj_buffer.append(&mut unsafe { game_object_cell_pointers.align_to::<u8>().1 }.to_vec());
@@ -342,7 +330,7 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
 #[derive(Clone)]
 pub struct GGXXPlayerEntry {
     #[br(try_calc = s.stream_position())]
-    data_offset: u64,
+    pub data_offset: u64,
     #[br(temp)]
     cell_pointer: u32,
     #[br(temp)]
@@ -366,7 +354,7 @@ pub struct GGXXPlayerEntry {
 #[derive(Clone)]
 pub struct GGXXObjEntry {
     #[br(try_calc = s.stream_position())]
-    data_offset: u64,
+    pub data_offset: u64,
     #[br(temp)]
     cell_pointer: u32,
     #[br(temp)]
@@ -388,7 +376,7 @@ pub struct GGXXObjEntry {
 #[derive(Clone)]
 pub struct GGXXCellArray {
     #[br(try_calc = s.stream_position())]
-    data_offset: u64,
+    pub data_offset: u64,
     #[br(temp)]
     #[br(parse_with = until_exclusive(|&dword| dword == 0xffffffff))]
     cell_pointers: Vec<u32>,
@@ -433,7 +421,7 @@ pub struct GGXXSpriteInfo {
 #[derive(Clone)]
 pub struct GGXXSpriteArray {
     #[br(try_calc = s.stream_position())]
-    data_offset: u64,
+    pub data_offset: u64,
     #[br(temp)]
     #[br(parse_with = until_exclusive(|&dword| dword == 0xffffffff))]
     sprite_pointers: Vec<u32>,
@@ -445,11 +433,53 @@ pub struct GGXXSpriteArray {
 }
 
 #[binread]
-#[br(stream = s)]
+#[br(little, stream = s)]
 #[derive(Clone)]
 pub struct GGXXSpriteData {
-    #[br(parse_with = until_exclusive(|&dword| dword == 0xffff))]
-    pub data: Vec<u16>,
+    #[br(count = 0x8)]
+    pub header: Vec<u16>,
+    #[br(count = 0x30)]
+    pub hack_fix: Vec<u8>,
+    #[br(parse_with = sprite_data_parser)]
+    /*#[br(parse_with = until_exclusive(|&dword|
+        (dword & 0xFFFF == 1 || dword & 0xFFFF == 5)
+            && ((dword >> 16) as u16 % 4 == 0u16)
+            && ((dword >> 16) <= 32u32)
+        || dword & 0xFFFF == 1253 && (dword >> 16) as u16 % 5 == 0u16
+        && (dword >> 16) as u16 <= 1000))]*/
+    pub data: Vec<u8>,
+}
+
+#[binrw::parser(reader, endian)]
+fn sprite_data_parser() -> BinResult<Vec<u8>>
+{
+    let mut data: Vec<u8> = Vec::new();
+    loop {
+        data.push(<_>::read_options(reader, endian, ())?);
+        if data.len() % 4 == 0
+        {
+            if data.len() >= 8
+            {
+                let terminator = u64::from_le_bytes(data[(data.len() - 8)..].try_into().unwrap());
+                if terminator == 0xFFFFFFFFFFFFFFFF || terminator == 0 {
+                    data.truncate(data.len().saturating_sub(8));
+                    break
+                }
+            }
+            let dword = u32::from_le_bytes(data[(data.len() - 4)..].try_into().unwrap());
+            if (dword & 0xFFFF == 1 || dword & 0xFFFF == 5)
+                && ((dword >> 16) as u16 % 4 == 0u16)
+                && ((dword >> 16) <= 32u32)
+                || dword & 0xFFFF == 1253 && (dword >> 16) as u16 % 5 == 0u16
+                && (dword >> 16) as u16 <= 1000
+            {
+                data.truncate(data.len().saturating_sub(4));
+                break
+            }
+        }
+    }
+
+    Ok(data)
 }
 
 #[binread]
@@ -457,7 +487,7 @@ pub struct GGXXSpriteData {
 #[derive(Clone)]
 pub struct GGXXPaletteArray {
     #[br(try_calc = s.stream_position())]
-    data_offset: u64,
+    pub data_offset: u64,
     #[br(temp)]
     #[br(parse_with = until_exclusive(|&dword| dword == 0xffffffff))]
     palette_pointers: Vec<u32>,
@@ -469,6 +499,7 @@ pub struct GGXXPaletteArray {
 }
 
 #[binread]
+#[br(little)]
 #[derive(Clone, Serialize, Deserialize)]
 pub struct GGXXPaletteEntry {
     pub unk: u16,
