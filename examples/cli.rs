@@ -150,7 +150,7 @@ fn run() -> AResult<()> {
                 let bytes = hex::decode(bytes)?;
                 println!(
                     "ArcSys filename hash of data: 0x{:X}",
-                    arcsys::arcsys_filename_hash(&bytes)
+                    arcsys_filename_hash(&bytes)
                 );
 
                 Ok(())
@@ -161,7 +161,7 @@ fn run() -> AResult<()> {
 
 use std::fs::File;
 use std::io::BufReader;
-use arcsys::ggacpr::obj::{GGXXCellArray, GGXXCellEntry, GGXXObjBin, GGXXObjEntry, GGXXPaletteArray, GGXXPaletteEntry, GGXXPlayerEntry, GGXXSpriteArray, GGXXSpriteData};
+use arcsys::ggacpr::obj::{GGXXCellArray, GGXXCellEntry, GGXXObjBin, GGXXObjEntry, GGXXPaletteArray, GGXXPaletteEntry, GGXXPlayerEntry, GGXXSpriteArray};
 use arcsys::ggacpr::script::{GGXXObjScriptData, GGXXPlayerScriptData};
 
 fn parse_pac(args: FileActionArgs) -> AResult<()> {
@@ -204,14 +204,10 @@ fn parse_obj(args: FileActionArgs) -> AResult<()> {
             )?;
         }
         for (j, sprite) in obj.player.sprite_array.sprite_entries.iter().enumerate() {
-            let mut byte_array = unsafe { &sprite.header.align_to::<u8>().1 }.to_vec();
-            byte_array.append(&mut sprite.hack_fix.clone());
-            byte_array.append(&mut sprite.data.clone());
-
             write_file(
                 out_path.join(format!("player/sprites/sprite_{}.bin", j)),
                 args.overwrite,
-                byte_array,
+                sprite,
             )?;
         }
 
@@ -253,14 +249,10 @@ fn parse_obj(args: FileActionArgs) -> AResult<()> {
                 )?;
             }
             for (j, sprite) in game_object.sprite_array.sprite_entries.iter().enumerate() {
-                let mut byte_array = unsafe { &sprite.header.align_to::<u8>().1 }.to_vec();
-                byte_array.append(&mut sprite.hack_fix.clone());
-                byte_array.append(&mut sprite.data.clone());
-
                 write_file(
                     out_path.join(format!("objno{}/sprites/sprite_{}.bin", i, j)),
                     args.overwrite,
-                    byte_array,
+                    sprite,
                 )?;
             }
 
@@ -300,7 +292,7 @@ fn rebuild_obj(args: FileActionArgs) -> AResult<()> {
         cell_entries: player_cell_entries,
     };
 
-    let mut player_sprite_entries: Vec<GGXXSpriteData> = Vec::new();
+    let mut player_sprite_entries: Vec<Vec<u8>> = Vec::new();
     let player_sprite_paths = fs::read_dir(args.file_in.join("player/sprites"))?;
 
     let mut player_sprite_index: usize = 0;
@@ -308,24 +300,11 @@ fn rebuild_obj(args: FileActionArgs) -> AResult<()> {
     for _ in player_sprite_paths {
         let buffer = fs::read(args.file_in.join(format!("player/sprites/sprite_{}.bin", player_sprite_index)))?;
 
-        let mut header: Vec<u16> = unsafe { &buffer.align_to::<u16>().1 }.to_vec();
-        header.truncate(8);
-
-        let hack_fix: Vec<u8> = buffer[16..64].to_vec();
-        let data: Vec<u8> = buffer[64..].to_vec();
-
-        let sprite: GGXXSpriteData = GGXXSpriteData {
-            header,
-            hack_fix,
-            data
-        };
-
-        player_sprite_entries.push(sprite);
+        player_sprite_entries.push(buffer);
         player_sprite_index += 1;
     }
 
     let player_sprite_array = GGXXSpriteArray {
-        data_offset: 0,
         sprite_entries: player_sprite_entries,
     };
 
@@ -385,7 +364,7 @@ fn rebuild_obj(args: FileActionArgs) -> AResult<()> {
             cell_entries: obj_cell_entries,
         };
 
-        let mut obj_sprite_entries: Vec<GGXXSpriteData> = Vec::new();
+        let mut obj_sprite_entries: Vec<Vec<u8>> = Vec::new();
         let obj_sprite_paths = fs::read_dir(path.join("sprites"))?;
 
         let mut obj_sprite_index: usize = 0;
@@ -393,23 +372,10 @@ fn rebuild_obj(args: FileActionArgs) -> AResult<()> {
         for _ in obj_sprite_paths {
             let buffer = fs::read(path.join(format!("sprites/sprite_{}.bin", obj_sprite_index)))?;
 
-            let mut header: Vec<u16> = unsafe { &buffer.align_to::<u16>().1 }.to_vec();
-            header.truncate(8);
-
-            let hack_fix: Vec<u8> = buffer[16..64].to_vec();
-            let data: Vec<u8> = buffer[64..].to_vec();
-
-            let sprite: GGXXSpriteData = GGXXSpriteData {
-                header,
-                hack_fix,
-                data
-            };
-
-            obj_sprite_entries.push(sprite);
+            obj_sprite_entries.push(buffer);
             obj_sprite_index += 1;
         }
         let obj_sprite_array = GGXXSpriteArray {
-            data_offset: 0,
             sprite_entries: obj_sprite_entries,
         };
 

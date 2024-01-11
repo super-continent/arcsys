@@ -121,7 +121,7 @@ pub enum ScriptInstruction {
         angle: i16,
     },
     #[br(magic(9u8))]
-    Move {
+    UnkAttack {
         flag: u8,
         x: i16,
         y: i16,
@@ -161,11 +161,7 @@ pub enum ScriptInstruction {
     },
     #[br(magic(16u8))]
     DrawNormal {
-        #[br(temp)]
-        #[serde(skip)]
         flag: u8,
-        #[br(temp)]
-        #[serde(skip)]
         arg: u16,
     },
     #[br(magic(17u8))]
@@ -250,6 +246,11 @@ pub enum ScriptInstruction {
         flag: u8,
         arg: u16,
     },
+    #[br(magic(38u8))]
+    DeleteIttai {
+        flag: u8,
+        arg: u16,
+    },
     #[br(magic(39u8))]
     JumpCell {
         flag: u8,
@@ -297,7 +298,7 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(52u8))]
-    Unk52 {
+    AddTension {
         flag: u8,
         arg: u16,
     },
@@ -348,10 +349,10 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(64u8))]
-    Unk64 {
+    AttackLevelAndDamage {
         flag: u8,
-        arg1: u8,
-        arg2: u8,
+        damage: u8,
+        attack_level: u8,
     },
     #[br(magic(65u8))]
     XTransform {
@@ -428,6 +429,11 @@ pub enum ScriptInstruction {
     },
     #[br(magic(80u8))]
     Unk80 {
+        flag: u8,
+        arg: u16,
+    },
+    #[br(magic(81u8))]
+    Unk81 {
         flag: u8,
         arg: u16,
     },
@@ -576,12 +582,12 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut angle.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Move { flag, x, y, priority } => {
+            ScriptInstruction::UnkAttack { flag: attack_level, x: damage, y: arg1, priority: arg2 } => {
                 buffer.push(9);
-                buffer.push(*flag);
-                buffer.append(&mut x.to_le_bytes().to_vec());
-                buffer.append(&mut y.to_le_bytes().to_vec());
-                buffer.append(&mut priority.to_le_bytes().to_vec());
+                buffer.push(*attack_level);
+                buffer.append(&mut damage.to_le_bytes().to_vec());
+                buffer.append(&mut arg1.to_le_bytes().to_vec());
+                buffer.append(&mut arg2.to_le_bytes().to_vec());
             }
             ScriptInstruction::StopFrame { .. } => {
                 buffer.push(11);
@@ -606,11 +612,10 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::DrawNormal { .. } => {
+            ScriptInstruction::DrawNormal { arg, flag } => {
                 buffer.push(16);
-                for _ in 0..3 {
-                    buffer.push(0x0);
-                }
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
             }
             ScriptInstruction::DrawReverse { arg, flag } => {
                 buffer.push(17);
@@ -694,6 +699,11 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
+            ScriptInstruction::DeleteIttai { flag, arg } => {
+                buffer.push(38);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+            }
             ScriptInstruction::JumpCell { flag, arg } => {
                 buffer.push(39);
                 buffer.push(*flag);
@@ -731,7 +741,7 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk52 { flag, arg } => {
+            ScriptInstruction::AddTension { flag, arg } => {
                 buffer.push(52);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
@@ -779,11 +789,11 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk64 { flag, arg1, arg2 } => {
+            ScriptInstruction::AttackLevelAndDamage { flag: attack_level, damage, attack_level: arg } => {
                 buffer.push(64);
-                buffer.push(*flag);
-                buffer.push(*arg1);
-                buffer.push(*arg2);
+                buffer.push(*attack_level);
+                buffer.push(*damage);
+                buffer.push(*arg);
             }
             ScriptInstruction::XTransform { flag, magnitude } => {
                 buffer.push(65);
@@ -860,6 +870,11 @@ impl ScriptInstruction {
             }
             ScriptInstruction::Unk80 { flag, arg } => {
                 buffer.push(80);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+            }
+            ScriptInstruction::Unk81 { flag, arg } => {
+                buffer.push(81);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }

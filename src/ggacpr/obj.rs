@@ -28,7 +28,6 @@ trait SkipLast: Iterator + Sized {
 impl<I: Iterator> SkipLast for I {}
 
 helpers::impl_open!(GGXXObjBin);
-helpers::impl_open!(GGXXSpriteData);
 helpers::impl_open!(GGXXPaletteEntry);
 
 #[binread]
@@ -83,7 +82,10 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
     let mut player_cell_pointers: Vec<u32> = Vec::new();
     let mut player_cell_buffer = Vec::new();
 
-    let padding = helpers::needed_to_align(obj.player.cell_array.cell_entries.len() * 4, 0x10);
+    let mut padding = helpers::needed_to_align(obj.player.cell_array.cell_entries.len() * 4, 0x10);
+    if padding == 0 {
+        padding = 0x10;
+    }
 
     for cell in obj.player.cell_array.cell_entries.iter() {
         player_cell_pointers.push(
@@ -132,10 +134,7 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
     for sprite in obj.player.sprite_array.sprite_entries.iter() {
         player_sprite_pointers.push(
             (obj.player.sprite_array.sprite_entries.len() * 4 + player_sprite_buffer.len() + padding) as u32);
-        player_sprite_buffer.append(&mut unsafe { &sprite.header.align_to::<u8>().1 }.to_vec());
-        player_sprite_buffer.append(&mut sprite.hack_fix.clone());
-        player_sprite_buffer.append(&mut sprite.data.clone());
-
+        player_sprite_buffer.extend(sprite);
         let padding = helpers::needed_to_align(player_sprite_buffer.len(), 0x10);
         (0..padding).for_each(|_| player_sprite_buffer.push(0xFF));
     };
@@ -178,7 +177,10 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
     let mut player_palette_pointers: Vec<u32> = Vec::new();
     let mut player_palette_buffer = Vec::new();
 
-    let padding = helpers::needed_to_align(obj.player.palette_array.palette_entries.len() * 4, 0x10);
+    let mut padding = helpers::needed_to_align(obj.player.palette_array.palette_entries.len() * 4, 0x10);
+    if padding == 0 {
+        padding = 0x10;
+    }
 
     for palette in obj.player.palette_array.palette_entries.iter() {
         player_palette_pointers.push(
@@ -215,7 +217,7 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
     let padding = if obj_num % 4 == 0 {
         0x10
     } else {
-        0x10 - obj_num * 4
+        0x10 - obj_num % 4 * 4
     };
     let initial_offset = obj_num * 4 + padding;
 
@@ -229,7 +231,10 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
         let mut game_object_cell_pointers: Vec<u32> = Vec::new();
         let mut game_object_cell_buffer = Vec::new();
 
-        let padding = helpers::needed_to_align(game_object.cell_array.cell_entries.len() * 4, 0x10);
+        let mut padding = helpers::needed_to_align(game_object.cell_array.cell_entries.len() * 4, 0x10);
+        if padding == 0 {
+            padding = 0x10;
+        }
 
         for cell in game_object.cell_array.cell_entries.iter() {
             game_object_cell_pointers.push(
@@ -270,15 +275,15 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
         let mut game_object_sprite_pointers: Vec<u32> = Vec::new();
         let mut game_object_sprite_buffer = Vec::new();
 
-        let padding = helpers::needed_to_align(game_object.sprite_array.sprite_entries.len() * 4, 0x10);
+        let mut padding = helpers::needed_to_align(game_object.sprite_array.sprite_entries.len() * 4, 0x10);
+        if padding == 0 {
+            padding = 0x10;
+        }
 
         for sprite in game_object.sprite_array.sprite_entries.iter() {
             game_object_sprite_pointers.push(
                 (game_object.sprite_array.sprite_entries.len() * 4 + game_object_sprite_buffer.len() + padding) as u32);
-            game_object_sprite_buffer.append(&mut unsafe { &sprite.header.align_to::<u8>().1 }.to_vec());
-            game_object_sprite_buffer.append(&mut sprite.hack_fix.clone());
-            game_object_sprite_buffer.append(&mut sprite.data.clone());
-
+            game_object_sprite_buffer.extend(sprite);
             let padding = helpers::needed_to_align(game_object_sprite_buffer.len(), 0x10);
             (0..padding).for_each(|_| game_object_sprite_buffer.push(0xFF));
         };
@@ -326,7 +331,7 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
 }
 
 #[binread]
-#[br(stream = s)]
+#[br(stream = s, import(val1: usize))]
 #[derive(Clone)]
 pub struct GGXXPlayerEntry {
     #[br(try_calc = s.stream_position())]
@@ -341,7 +346,11 @@ pub struct GGXXPlayerEntry {
     palette_pointer: u32,
     #[br(seek_before(SeekFrom::Start(data_offset + cell_pointer as u64)))]
     pub cell_array: GGXXCellArray,
-    #[br(seek_before(SeekFrom::Start(data_offset + sprite_pointer as u64)))]
+    #[br(
+        parse_with(sprite_array_parser),
+        seek_before(SeekFrom::Start(data_offset + sprite_pointer as u64)),
+        args((data_offset as u32 + script_pointer) as usize, (data_offset as u32 + sprite_pointer) as usize)
+    )]
     pub sprite_array: GGXXSpriteArray,
     #[br(seek_before(SeekFrom::Start(data_offset + script_pointer as u64)))]
     pub script_data: GGXXPlayerScriptData,
@@ -350,7 +359,7 @@ pub struct GGXXPlayerEntry {
 }
 
 #[binread]
-#[br(stream = s)]
+#[br(stream = s, import(val1: usize))]
 #[derive(Clone)]
 pub struct GGXXObjEntry {
     #[br(try_calc = s.stream_position())]
@@ -365,7 +374,11 @@ pub struct GGXXObjEntry {
     unused: u32,
     #[br(seek_before(SeekFrom::Start(data_offset + cell_pointer as u64)))]
     pub cell_array: GGXXCellArray,
-    #[br(seek_before(SeekFrom::Start(data_offset + sprite_pointer as u64)))]
+    #[br(
+        parse_with(sprite_array_parser),
+        seek_before(SeekFrom::Start(data_offset + sprite_pointer as u64)),
+        args((data_offset as u32 + script_pointer) as usize, (data_offset as u32 + sprite_pointer) as usize)
+    )]
     pub sprite_array: GGXXSpriteArray,
     #[br(seek_before(SeekFrom::Start(data_offset + script_pointer as u64)))]
     pub script_data: GGXXObjScriptData,
@@ -416,64 +429,52 @@ pub struct GGXXSpriteInfo {
     pub index: u16,
 }
 
-#[binread]
-#[br(stream = s)]
-#[derive(Clone)]
-pub struct GGXXSpriteArray {
-    #[br(try_calc = s.stream_position())]
-    pub data_offset: u64,
-    #[br(temp)]
-    #[br(parse_with = until_exclusive(|&dword| dword == 0xffffffff))]
-    sprite_pointers: Vec<u32>,
-    #[br(
-        parse_with = parse_from_iter(sprite_pointers.iter().copied()),
-        seek_before(SeekFrom::Start(data_offset))
-    )]
-    pub sprite_entries: Vec<GGXXSpriteData>,
-}
-
-#[binread]
-#[br(little, stream = s)]
-#[derive(Clone)]
-pub struct GGXXSpriteData {
-    #[br(count = 0x8)]
-    pub header: Vec<u16>,
-    #[br(count = 0x30)]
-    pub hack_fix: Vec<u8>,
-    #[br(parse_with = sprite_data_parser)]
-    pub data: Vec<u8>,
-}
-
 #[binrw::parser(reader, endian)]
-fn sprite_data_parser() -> BinResult<Vec<u8>>
+fn sprite_array_parser(v0: usize, v1: usize) -> BinResult<GGXXSpriteArray>
 {
-    let mut data: Vec<u8> = Vec::new();
+    let before = reader.stream_position()?;
+
+    let mut pointers: Vec<u32> = Vec::new();
     loop {
-        data.push(<_>::read_options(reader, endian, ())?);
-        if data.len() % 4 == 0
-        {
-            if data.len() >= 8
-            {
-                let terminator = u64::from_le_bytes(data[(data.len() - 8)..].try_into().unwrap());
-                if terminator == 0xFFFFFFFFFFFFFFFF || terminator == 0 {
-                    data.truncate(data.len().saturating_sub(8));
-                    break
-                }
-            }
-            let dword = u32::from_le_bytes(data[(data.len() - 4)..].try_into().unwrap());
-            if (dword & 0xFFFF == 1 || dword & 0xFFFF == 5)
-                && ((dword >> 16) as u16 % 4 == 0u16)
-                && ((dword >> 16) <= 32u32)
-                || dword & 0xFFFF == 1253 && (dword >> 16) as u16 % 5 == 0u16
-                && (dword >> 16) as u16 <= 1000
-            {
-                data.truncate(data.len().saturating_sub(4));
-                break
-            }
+        pointers.push(<_>::read_options(reader, endian, ())?);
+        if *pointers.last().unwrap() == 0xFFFFFFFF {
+            pointers.pop();
+            break
         }
     }
 
-    Ok(data)
+    let mut entries: Vec<Vec<u8>> = Vec::new();
+
+    for (i, pointer) in pointers.iter().enumerate() {
+        reader.seek(SeekFrom::Start(before + *pointer as u64))?;
+
+        let size = if i < pointers.len() - 1 {
+            pointers[i + 1] - pointer
+        } else {
+            v0 as u32 - pointer - v1 as u32
+        };
+
+        let mut data: Vec<u8> = Vec::new();
+        for _ in 0..size {
+            data.push(<_>::read_options(reader, endian, ())?);
+        }
+
+        entries.push(data);
+    }
+
+    let arr = GGXXSpriteArray {
+        sprite_entries: entries,
+    };
+
+    Ok(arr)
+}
+
+#[binread]
+#[br(import(val1: usize))]
+#[derive(Clone)]
+pub struct GGXXSpriteArray {
+    #[br(ignore)]
+    pub sprite_entries: Vec<Vec<u8>>,
 }
 
 #[binread]
