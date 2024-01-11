@@ -179,11 +179,19 @@ pub enum ScriptInstruction {
         flag: u8,
         arg: u16,
     },
+    #[br(magic(23u8))]
+    OffsetXFromOwner {
+        flag: u8,
+        magnitude: i16,
+    },
+    #[br(magic(24u8))]
+    OffsetYFromOwner {
+        flag: u8,
+        magnitude: i16,
+    },
     #[br(magic(25u8))]
     InitInstance {
-        #[br(temp)]
-        #[serde(skip)]
-        rsrv: u8,
+        flag: u8,
         anime_no: u16,
         obj_no: u32,
         kind: u32,
@@ -261,11 +269,19 @@ pub enum ScriptInstruction {
         flag: u8,
         z: u16,
     },
+    #[br(magic(41u8))]
+    DrawReverseParent {
+        flag: u8,
+        arg: u16,
+    },
+    #[br(magic(42u8))]
+    DirReverseParent {
+        flag: u8,
+        arg: u16,
+    },
     #[br(magic(45u8))]
     Unk45 {
-        #[br(temp)]
-        #[serde(skip)]
-        rsrv: u8,
+        flag: u8,
         arg: u16,
     },
     #[br(magic(47u8))]
@@ -445,7 +461,7 @@ pub enum ScriptInstruction {
     #[br(magic(84u8))]
     Pushback {
         flag: u8,
-        magnitude: u16,
+        magnitude: i16,
     },
     #[br(magic(85u8))]
     Stagger {
@@ -489,6 +505,11 @@ pub enum ScriptInstruction {
         arg2: u16,
         arg3: u16,
     },
+    #[br(magic(98u8))]
+    Unk98 {
+        flag: u8,
+        arg: i16,
+    },
     #[br(magic(99u8))]
     Unk99 {
         flag: u8,
@@ -508,6 +529,16 @@ pub enum ScriptInstruction {
         unk2: u8,
         unk3: u8,
         unk4: u8,
+    },
+    #[br(magic(103u8))]
+    Unk103 {
+        flag: u8,
+        arg: u16,
+    },
+    #[br(magic(129u8))]
+    Unk129 {
+        flag: u8,
+        arg: u16,
     },
     #[br(magic(132u8))]
     Unk132 {
@@ -632,11 +663,21 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
+            ScriptInstruction::OffsetXFromOwner { flag, magnitude } => {
+                buffer.push(23);
+                buffer.push(*flag);
+                buffer.append(&mut magnitude.to_le_bytes().to_vec());
+            }
+            ScriptInstruction::OffsetYFromOwner { flag, magnitude } => {
+                buffer.push(24);
+                buffer.push(*flag);
+                buffer.append(&mut magnitude.to_le_bytes().to_vec());
+            }
             ScriptInstruction::InitInstance {
-                anime_no, obj_no, kind, state_no, is_check_col }
+                flag, anime_no, obj_no, kind, state_no, is_check_col }
             => {
                 buffer.push(25);
-                buffer.push(0);
+                buffer.push(*flag);
                 buffer.append(&mut anime_no.to_le_bytes().to_vec());
                 buffer.append(&mut obj_no.to_le_bytes().to_vec());
                 buffer.append(&mut kind.to_le_bytes().to_vec());
@@ -714,9 +755,19 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut z.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk45 { arg } => {
+            ScriptInstruction::DrawReverseParent { flag, arg } => {
+                buffer.push(41);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+            }
+            ScriptInstruction::DirReverseParent { flag, arg } => {
+                buffer.push(42);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+            }
+            ScriptInstruction::Unk45 { flag, arg } => {
                 buffer.push(45);
-                buffer.push(0);
+                buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
             ScriptInstruction::Unk47 { arg } => {
@@ -930,6 +981,11 @@ impl ScriptInstruction {
                 buffer.append(&mut arg2.to_le_bytes().to_vec());
                 buffer.append(&mut arg3.to_le_bytes().to_vec());
             }
+            ScriptInstruction::Unk98 { flag, arg } => {
+                buffer.push(98);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+            }
             ScriptInstruction::Unk99 { flag, arg } => {
                 buffer.push(99);
                 buffer.push(*flag);
@@ -951,6 +1007,16 @@ impl ScriptInstruction {
                 buffer.push(*unk2);
                 buffer.push(*unk3);
                 buffer.push(*unk4);
+            }
+            ScriptInstruction::Unk103  { flag, arg } => {
+                buffer.push(103);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+            }
+            ScriptInstruction::Unk129  { flag, arg } => {
+                buffer.push(129);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
             }
             ScriptInstruction::Unk132  { flag, arg } => {
                 buffer.push(132);
