@@ -10,7 +10,7 @@ pub struct GGXXPlayerScriptData {
     #[br(count = 0xB0)]
     pub unk_data: Vec<u8>,
     #[br(
-        parse_with = until(|action: &ScriptAction| action.header[0] == 253)
+        parse_with = until(|action: &ScriptAction| action.flags & 253 == 253)
     )]
     pub actions: Vec<ScriptAction>,
 }
@@ -19,7 +19,7 @@ pub struct GGXXPlayerScriptData {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct GGXXObjScriptData {
     #[br(
-        parse_with = until(|action: &ScriptAction| action.header[0] == 253)
+        parse_with = until(|action: &ScriptAction| action.flags & 253 == 253)
     )]
     pub actions: Vec<ScriptAction>,
 }
@@ -121,7 +121,7 @@ pub enum ScriptInstruction {
         angle: i16,
     },
     #[br(magic(9u8))]
-    UnkAttack {
+    Move {
         flag: u8,
         x: i16,
         y: i16,
@@ -365,10 +365,10 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(64u8))]
-    Damage {
+    Unk64 {
         flag: u8,
-        damage: u8,
-        arg: u8,
+        arg1: u8,
+        arg2: u8,
     },
     #[br(magic(65u8))]
     XTransform {
@@ -613,12 +613,12 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut angle.to_le_bytes().to_vec());
             }
-            ScriptInstruction::UnkAttack { flag, x: damage, y: arg1, priority: arg2 } => {
+            ScriptInstruction::Move { flag, x, y, priority } => {
                 buffer.push(9);
                 buffer.push(*flag);
-                buffer.append(&mut damage.to_le_bytes().to_vec());
-                buffer.append(&mut arg1.to_le_bytes().to_vec());
-                buffer.append(&mut arg2.to_le_bytes().to_vec());
+                buffer.append(&mut x.to_le_bytes().to_vec());
+                buffer.append(&mut y.to_le_bytes().to_vec());
+                buffer.append(&mut priority.to_le_bytes().to_vec());
             }
             ScriptInstruction::StopFrame { .. } => {
                 buffer.push(11);
@@ -840,11 +840,11 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Damage { flag, damage, arg } => {
+            ScriptInstruction::Unk64 { flag, arg1, arg2 } => {
                 buffer.push(64);
                 buffer.push(*flag);
-                buffer.push(*damage);
-                buffer.push(*arg);
+                buffer.push(*arg1);
+                buffer.push(*arg2);
             }
             ScriptInstruction::XTransform { flag, magnitude } => {
                 buffer.push(65);
@@ -1047,13 +1047,15 @@ impl ScriptInstruction {
 #[binread]
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ScriptAction {
-    #[br(count = 8)]
-    pub header: Vec<u8>,
+    pub flags: u32,
+    pub ls3b_attack_level: u16,
+    pub damage: u8,
+    pub collision_mask: u8,
     #[br(parse_with = until(|&inst| match inst {
         ScriptInstruction::ActionEnd { .. } => true,
         _ => false,
         }),
-        if(header[0] != 253, Vec::new())
+        if(flags & 253 != 253, Vec::new())
     )]
     pub instructions: Vec<ScriptInstruction>,
 }
