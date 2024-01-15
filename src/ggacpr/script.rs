@@ -368,7 +368,7 @@ pub enum ScriptInstruction {
     Damage {
         flag: u8,
         damage: u8,
-        unk: u8,
+        arg: u8,
     },
     #[br(magic(65u8))]
     XTransform {
