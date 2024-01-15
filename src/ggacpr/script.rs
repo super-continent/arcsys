@@ -90,7 +90,7 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(3u8))]
-    BackMotion {
+    Recovery {
         flag: u8,
         arg: u16,
     },
@@ -146,7 +146,7 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(14u8))]
-    DoNotCheckDamage {
+    SetStrikeInvuln {
         #[br(temp)]
         #[serde(skip)]
         flag: u8,
@@ -170,7 +170,7 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(18u8))]
-    ChainCancel {
+    EnableCancel {
         flag: u8,
         arg: u16,
     },
@@ -242,17 +242,17 @@ pub enum ScriptInstruction {
     #[br(magic(34u8))]
     HitGravity {
         flag: u8,
-        arg: u16,
+        arg: i16,
     },
     #[br(magic(35u8))]
     HitAirPushbackX {
         flag: u8,
-        arg: u16,
+        arg: i16,
     },
     #[br(magic(36u8))]
     HitAirPushbackY {
         flag: u8,
-        arg: u16,
+        arg: i16,
     },
     #[br(magic(38u8))]
     DeleteIttai {
@@ -280,7 +280,7 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(45u8))]
-    Unk45 {
+    PlayAttackVoice {
         flag: u8,
         arg: u16,
     },
@@ -309,14 +309,14 @@ pub enum ScriptInstruction {
         jump_target: u32,
     },
     #[br(magic(50u8))]
-    Unk50 {
+    Untech {
         flag: u8,
         arg: u16,
     },
     #[br(magic(52u8))]
     AddTension {
-        flag: u8,
-        arg: u16,
+        active: u8,
+        hit: u16,
     },
     #[br(magic(53u8))]
     Unk53 {
@@ -351,7 +351,7 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(61u8))]
-    Unk61 {
+    RemoveStrikeInvuln {
         #[br(temp)]
         #[serde(skip)]
         flag: u8,
@@ -360,15 +360,15 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(63u8))]
-    Unk63 {
+    EnableCancelSecondary {
         flag: u8,
         arg: u16,
     },
     #[br(magic(64u8))]
-    Unk64 {
-        flag: u8,
-        arg1: u8,
-        arg2: u8,
+    SuperFreeze {
+        stop_self: u8,
+        stop_world: u8,
+        unk: u8,
     },
     #[br(magic(65u8))]
     XTransform {
@@ -434,7 +434,7 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(78u8))]
-    Unk78 {
+    SetProration {
         flag: u8,
         arg: u16,
     },
@@ -444,7 +444,7 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(80u8))]
-    Unk80 {
+    SetThrowInvuln {
         flag: u8,
         arg: u16,
     },
@@ -582,7 +582,7 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::BackMotion { flag, arg } => {
+            ScriptInstruction::Recovery { flag, arg } => {
                 buffer.push(3);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
@@ -632,7 +632,7 @@ impl ScriptInstruction {
                     buffer.push(0x0);
                 }
             }
-            ScriptInstruction::DoNotCheckDamage { .. } => {
+            ScriptInstruction::SetStrikeInvuln { .. } => {
                 buffer.push(14);
                 for _ in 0..3 {
                     buffer.push(0x0);
@@ -653,7 +653,7 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::ChainCancel { flag, arg } => {
+            ScriptInstruction::EnableCancel { flag, arg } => {
                 buffer.push(18);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
@@ -765,7 +765,7 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk45 { flag, arg } => {
+            ScriptInstruction::PlayAttackVoice { flag, arg } => {
                 buffer.push(45);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
@@ -787,15 +787,15 @@ impl ScriptInstruction {
                 }
                 buffer.append(&mut jump_target.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk50 { flag, arg } => {
+            ScriptInstruction::Untech { flag, arg } => {
                 buffer.push(50);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::AddTension { flag, arg } => {
+            ScriptInstruction::AddTension { active, hit } => {
                 buffer.push(52);
-                buffer.push(*flag);
-                buffer.append(&mut arg.to_le_bytes().to_vec());
+                buffer.push(*active);
+                buffer.append(&mut hit.to_le_bytes().to_vec());
             }
             ScriptInstruction::Unk53 { flag, arg, arg2, arg3 } => {
                 buffer.push(53);
@@ -829,22 +829,22 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk61 {} => {
+            ScriptInstruction::RemoveStrikeInvuln {} => {
                 buffer.push(61);
                 for _ in 0..3 {
                     buffer.push(0x0);
                 }
             }
-            ScriptInstruction::Unk63 { flag, arg } => {
+            ScriptInstruction::EnableCancelSecondary { flag, arg } => {
                 buffer.push(63);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk64 { flag, arg1, arg2 } => {
+            ScriptInstruction::SuperFreeze { stop_self, stop_world, unk } => {
                 buffer.push(64);
-                buffer.push(*flag);
-                buffer.push(*arg1);
-                buffer.push(*arg2);
+                buffer.push(*stop_self);
+                buffer.push(*stop_world);
+                buffer.push(*unk);
             }
             ScriptInstruction::XTransform { flag, magnitude } => {
                 buffer.push(65);
@@ -909,7 +909,7 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk78 { flag, arg } => {
+            ScriptInstruction::SetProration { flag, arg } => {
                 buffer.push(78);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
@@ -919,7 +919,7 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk80 { flag, arg } => {
+            ScriptInstruction::SetThrowInvuln { flag, arg } => {
                 buffer.push(80);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
