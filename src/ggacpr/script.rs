@@ -240,17 +240,17 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(34u8))]
-    DownJuuryoku {
+    HitGravity {
         flag: u8,
         arg: u16,
     },
     #[br(magic(35u8))]
-    DownX {
+    HitAirPushbackX {
         flag: u8,
         arg: u16,
     },
     #[br(magic(36u8))]
-    DownY {
+    HitAirPushbackY {
         flag: u8,
         arg: u16,
     },
@@ -725,17 +725,17 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::DownJuuryoku { flag, arg } => {
+            ScriptInstruction::HitGravity { flag, arg } => {
                 buffer.push(34);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::DownX { flag, arg } => {
+            ScriptInstruction::HitAirPushbackX { flag, arg } => {
                 buffer.push(35);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::DownY { flag, arg } => {
+            ScriptInstruction::HitAirPushbackY { flag, arg } => {
                 buffer.push(36);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
