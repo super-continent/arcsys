@@ -365,10 +365,10 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(64u8))]
-    AttackLevelAndDamage {
+    Damage {
         flag: u8,
         damage: u8,
-        attack_level: u8,
+        unk: u8,
     },
     #[br(magic(65u8))]
     XTransform {
@@ -613,9 +613,9 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut angle.to_le_bytes().to_vec());
             }
-            ScriptInstruction::UnkAttack { flag: attack_level, x: damage, y: arg1, priority: arg2 } => {
+            ScriptInstruction::UnkAttack { flag, x: damage, y: arg1, priority: arg2 } => {
                 buffer.push(9);
-                buffer.push(*attack_level);
+                buffer.push(*flag);
                 buffer.append(&mut damage.to_le_bytes().to_vec());
                 buffer.append(&mut arg1.to_le_bytes().to_vec());
                 buffer.append(&mut arg2.to_le_bytes().to_vec());
@@ -840,9 +840,9 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::AttackLevelAndDamage { flag: attack_level, damage, attack_level: arg } => {
+            ScriptInstruction::Damage { flag, damage, arg } => {
                 buffer.push(64);
-                buffer.push(*attack_level);
+                buffer.push(*flag);
                 buffer.push(*damage);
                 buffer.push(*arg);
             }
