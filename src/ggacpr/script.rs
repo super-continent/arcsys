@@ -10,7 +10,7 @@ pub struct GGXXPlayerScriptData {
     #[br(count = 0xB0)]
     pub unk_data: Vec<u8>,
     #[br(
-        parse_with = until(|action: &ScriptAction| matches!(action.instructions.last().unwrap(), ScriptInstruction::ScriptEnd { .. }))
+        parse_with = until(|action: &ScriptAction| action.header[0] == 253)
     )]
     pub actions: Vec<ScriptAction>,
 }
@@ -19,7 +19,7 @@ pub struct GGXXPlayerScriptData {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct GGXXObjScriptData {
     #[br(
-        parse_with = until(|action: &ScriptAction| matches!(action.instructions.last().unwrap(), ScriptInstruction::ScriptEnd { .. }))
+        parse_with = until(|action: &ScriptAction| action.header[0] == 253)
     )]
     pub actions: Vec<ScriptAction>,
 }
@@ -1047,10 +1047,13 @@ impl ScriptInstruction {
 #[binread]
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ScriptAction {
+    #[br(count = 8)]
+    pub header: Vec<u8>,
     #[br(parse_with = until(|&inst| match inst {
         ScriptInstruction::ActionEnd { .. } => true,
-        ScriptInstruction::ScriptEnd { .. } => true,
         _ => false,
-    }))]
+        }),
+        if(header[0] != 253, Vec::new())
+    )]
     pub instructions: Vec<ScriptInstruction>,
 }
