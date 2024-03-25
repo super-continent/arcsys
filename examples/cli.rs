@@ -115,7 +115,7 @@ fn run() -> AResult<()> {
         Type::Archive { format } => match format {
             PacType::Pac { action } => match action {
                 FileAction::Parse { args } => parse_pac(args),
-                FileAction::Rebuild { args: _ } => todo!(),
+                FileAction::Rebuild { args } => rebuild_pac(args),
             },
             PacType::Zcmp { action } => match action {
                 FileAction::Parse { args } => parse_zcmp(args),
@@ -161,7 +161,7 @@ fn run() -> AResult<()> {
 
 use std::fs::File;
 use std::io::BufReader;
-use arcsys::ggacpr::obj::{GGXXCellArray, GGXXCellEntry, GGXXObjBin, GGXXObjEntry, GGXXPaletteArray, GGXXPaletteEntry, GGXXPlayerEntry, GGXXSpriteArray};
+use arcsys::ggacpr::obj::{GGXXAudioArray, GGXXCellArray, GGXXCellEntry, GGXXObjBin, GGXXObjEntry, GGXXPaletteArray, GGXXPaletteEntry, GGXXPlayerEntry, GGXXSpriteArray};
 use arcsys::ggacpr::script::{GGXXObjScriptData, GGXXPlayerScriptData};
 
 fn parse_pac(args: FileActionArgs) -> AResult<()> {
@@ -169,6 +169,41 @@ fn parse_pac(args: FileActionArgs) -> AResult<()> {
 
     println!("{:X}: {:?}", pac.pac_style.bits(), pac.pac_style);
 
+    if let Some(out_path) = args.file_out {
+        for entry in pac.entries.iter()
+        {
+            write_file(out_path.join(entry.name().unwrap()), args.overwrite, &entry.contents)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn rebuild_pac(args: FileActionArgs) -> AResult<()> {
+    let mut entries: Vec<arcsys::pac::PacEntry> = Vec::new();
+    let player_cell_paths = fs::read_dir(args.file_in)?;
+
+    for path in player_cell_paths {
+        let path = path.unwrap();
+        let file = fs::read(path.path())?;
+        let entry = arcsys::pac::PacEntry::new_named(path.file_name().into_string().unwrap(), file);
+        entries.push(entry);
+    }
+    
+    let pac = arcsys::pac::Pac {
+        compression: arcsys::pac::Compression::None, 
+        pac_style: arcsys::pac::PacStyle::PATH_CUT | arcsys::pac::PacStyle::HASH_SORT | arcsys::pac::PacStyle::VERSION2,
+        entries
+    };
+    
+    if let Some(out_path) = args.file_out {
+        write_file(
+            out_path,
+            args.overwrite,
+            pac.to_bytes(),
+        )?;
+    }
+    
     Ok(())
 }
 
@@ -263,11 +298,13 @@ fn parse_obj(args: FileActionArgs) -> AResult<()> {
             )?;
         }
 
-        write_file(
-            out_path.join("player/unk_section.bin"),
-            args.overwrite,
-            obj.unk_section,
-        )?;
+        for (j, audio) in obj.audio_array.audio_entries.iter().enumerate() {
+            write_file(
+                out_path.join(format!("player/audio/audio_{}.vag", j)),
+                args.overwrite,
+                audio,
+            )?;
+        }
     }
 
     Ok(())
@@ -393,13 +430,26 @@ fn rebuild_obj(args: FileActionArgs) -> AResult<()> {
         obj_vec.push(obj);
     }
 
-    let unk_section = fs::read(args.file_in.join("player/unk_section.bin"))?;
+    let mut audio_entries: Vec<Vec<u8>> = Vec::new();
+    let audio_paths = fs::read_dir(args.file_in.join("player/audio"))?;
+
+    let mut audio_index: usize = 0;
+
+    for _ in audio_paths {
+        let buffer = fs::read(args.file_in.join(format!("player/audio/audio_{}.vag", audio_index)))?;
+
+        audio_entries.push(buffer);
+        audio_index += 1;
+    }
+
+    let audio_array = GGXXAudioArray {
+        audio_entries,
+    };
 
     let obj = GGXXObjBin {
         player,
-        unk_offset: 0,
         objects: obj_vec,
-        unk_section,
+        audio_array,
     };
 
     if let Some(out_path) = args.file_out {

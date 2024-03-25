@@ -3,7 +3,7 @@
 use std::io::SeekFrom;
 use binrw::{binread, BinRead, BinResult};
 use binrw::file_ptr::parse_from_iter;
-use binrw::helpers::{until_eof, until_exclusive};
+use binrw::helpers::{until_exclusive};
 use serde::{Deserialize, Serialize};
 use crate::helpers;
 use std::iter::Peekable;
@@ -44,23 +44,28 @@ pub struct GGXXObjBin {
         seek_before(SeekFrom::Start(4))
     )]
     obj_pointers: Vec<u32>,
-    #[br(try_calc = s.stream_position())]
-    pub unk_offset: u64,
+    #[br(
+        temp,
+        try_calc = s.stream_position()
+    )]
+    audio_offset: u64,
     #[br(
         parse_with = parse_from_iter(obj_pointers.iter().skip_last().copied()),
         seek_before(SeekFrom::Start(0))
     )]
     pub objects: Vec<GGXXObjEntry>,
-    #[br(temp)]
     #[br(
-        seek_before(SeekFrom::Start(unk_offset - 8)),
+        temp,
+        seek_before(SeekFrom::Start(audio_offset - 8))
     )]
-    unk_ptr: u32,
+    audio_ptr: u32,
     #[br(
-        parse_with = until_eof,
-        seek_before(SeekFrom::Start(unk_ptr as u64))
+        parse_with(audio_array_parser),
+        big,
+        seek_before(SeekFrom::Start(audio_ptr as u64)),
+        args(audio_ptr as usize)
     )]
-    pub unk_section: Vec<u8>,
+    pub audio_array: GGXXAudioArray,
 }
 
 impl GGXXObjBin {
@@ -153,6 +158,10 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
     player_script_buffer.append(&mut unsafe { play_data_buffer.align_to::<u8>().1 }.to_vec());
     player_script_buffer.append(&mut obj.player.script_data.unk_data.clone());
     for action in obj.player.script_data.actions.iter() {
+        player_script_buffer.append(&mut action.flags.to_le_bytes().to_vec());
+        player_script_buffer.append(&mut action.ls3b_attack_level.to_le_bytes().to_vec());
+        player_script_buffer.append(&mut action.damage.to_le_bytes().to_vec());
+        player_script_buffer.append(&mut action.collision_mask.to_le_bytes().to_vec());
         for instruction in action.instructions.iter() {
             player_script_buffer.append(&mut instruction.to_bytes());
         }
@@ -296,6 +305,10 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
 
         let mut game_object_script_buffer = Vec::new();
         for action in game_object.script_data.actions.iter() {
+            game_object_script_buffer.append(&mut action.flags.to_le_bytes().to_vec());
+            game_object_script_buffer.append(&mut action.ls3b_attack_level.to_le_bytes().to_vec());
+            game_object_script_buffer.append(&mut action.damage.to_le_bytes().to_vec());
+            game_object_script_buffer.append(&mut action.collision_mask.to_le_bytes().to_vec());
             for instruction in action.instructions.iter() {
                 game_object_script_buffer.append(&mut instruction.to_bytes());
             }
@@ -322,10 +335,30 @@ fn obj_to_bytes(obj: &GGXXObjBin) -> Vec<u8> {
     obj_pointers.push((initial_offset + player_buffer.len() + obj_buffer.len()) as u32);
     (0..padding / 4).for_each(|_| obj_pointers.push(0xFFFFFFFF));
 
+    let mut audio_pointers: Vec<u32> = Vec::new();
+    let mut audio_buffer = Vec::new();
+
+    let mut padding = helpers::needed_to_align(obj.audio_array.audio_entries.len() * 4, 0x10);
+    if padding == 0 {
+        padding = 0x10;
+    }
+    (0..0x10).for_each(|_| audio_buffer.push(0xFF));
+
+    for audio in obj.audio_array.audio_entries.iter() {
+        audio_pointers.push(
+            (obj.audio_array.audio_entries.len() * 4 + audio_buffer.len() + padding) as u32);
+        audio_buffer.extend(audio);
+    };
+
+    (0..padding / 4).for_each(|_| audio_pointers.push(0xFFFFFFFF));
+
     buffer.append(&mut unsafe { obj_pointers.align_to::<u8>().1 }.to_vec());
     buffer.append(&mut player_buffer);
     buffer.append(&mut obj_buffer);
-    buffer.append(&mut obj.unk_section.clone());
+    for pointer in audio_pointers {
+        buffer.append(&mut pointer.to_be_bytes().to_vec());
+    }
+    buffer.append(&mut audio_buffer);
 
     buffer
 }
@@ -509,3 +542,50 @@ pub struct GGXXPaletteEntry {
     pub palette: Vec<u32>,
 }
 
+#[binrw::parser(reader, endian)]
+fn audio_array_parser(v0: usize) -> BinResult<GGXXAudioArray>
+{
+    let before = reader.stream_position()?;
+
+    let mut pointers: Vec<u32> = Vec::new();
+    loop {
+        pointers.push(<_>::read_options(reader, endian, ())?);
+        if *pointers.last().unwrap() == 0xFFFFFFFF {
+            pointers.pop();
+            break
+        }
+    }
+
+    let mut entries: Vec<Vec<u8>> = Vec::new();
+
+    for (i, pointer) in pointers.iter().enumerate() {
+        reader.seek(SeekFrom::Start(before + *pointer as u64))?;
+
+        let size = if i < pointers.len() - 1 {
+            pointers[i + 1] - pointer
+        } else {
+            reader.stream_len()? as u32 - pointer - v0 as u32
+        };
+
+        let mut data: Vec<u8> = Vec::new();
+        for _ in 0..size {
+            data.push(<_>::read_options(reader, endian, ())?);
+        }
+
+        entries.push(data);
+    }
+
+    let arr = GGXXAudioArray {
+        audio_entries: entries,
+    };
+
+    Ok(arr)
+}
+
+#[binread]
+#[br(import(val1: usize))]
+#[derive(Clone)]
+pub struct GGXXAudioArray {
+    #[br(ignore)]
+    pub audio_entries: Vec<Vec<u8>>,
+}

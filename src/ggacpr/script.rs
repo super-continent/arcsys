@@ -85,7 +85,7 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(2u8))]
-    MakeObj {
+    Unk2 {
         flag: u8,
         arg: u16,
     },
@@ -100,13 +100,14 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(5u8))]
-    Shade {
-        r: u8,
-        g: u8,
-        b: u8,
+    Unk5 {
+        flag: u8,
+        #[br(temp)]
+        #[serde(skip)]
+        arg: u16,
     },
     #[br(magic(6u8))]
-    SemiTrans {
+    Unk6 {
         flag: u8,
         arg: u16,
     },
@@ -116,25 +117,26 @@ pub enum ScriptInstruction {
         stretch: i16,
     },
     #[br(magic(8u8))]
-    Rotation {
+    PosZ {
         flag: u8,
-        angle: i16,
+        depth: i16,
     },
     #[br(magic(9u8))]
-    Move {
+    Unk9 {
         flag: u8,
-        x: i16,
-        y: i16,
-        priority: u16,
+        arg: u16,
+    },
+    #[br(magic(10u8))]
+    Unk10 {
+        flag: u8,
+        arg: u8,
+        arg2: u8,
     },
     #[br(magic(11u8))]
-    StopFrame {
-        #[br(temp)]
-        #[serde(skip)]
+    Unk11 {
         flag: u8,
-        #[br(temp)]
-        #[serde(skip)]
-        arg: u16,
+        arg: u8,
+        arg2: u8,
     },
     #[br(magic(13u8))]
     DoNotCheckAttack {
@@ -174,8 +176,8 @@ pub enum ScriptInstruction {
         flag: u8,
         arg: u16,
     },
-    #[br(magic(20u8))]
-    Unk20 {
+    #[br(magic(19u8))]
+    Unk19 {
         flag: u8,
         arg: u16,
     },
@@ -216,6 +218,12 @@ pub enum ScriptInstruction {
         flag: u8,
         random_factor: u8,
     },
+    #[br(magic(29u8))]
+    Unk29 {
+        data: u8,
+        flag: u8,
+        random_factor: u8,
+    },
     #[br(magic(30u8))]
     EnemyGuardModeVoice {
         data: u8,
@@ -224,12 +232,6 @@ pub enum ScriptInstruction {
     },
     #[br(magic(31u8))]
     EnemyDamageModeVoice {
-        data: u8,
-        flag: u8,
-        random_factor: u8,
-    },
-    #[br(magic(32u8))]
-    AttackModeVoice {
         data: u8,
         flag: u8,
         random_factor: u8,
@@ -260,27 +262,17 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(39u8))]
-    JumpCell {
+    Unk39 {
         flag: u8,
         arg: u16,
     },
     #[br(magic(40u8))]
-    PosZ {
-        flag: u8,
-        z: u16,
-    },
-    #[br(magic(41u8))]
-    DrawReverseParent {
-        flag: u8,
-        arg: u16,
-    },
-    #[br(magic(42u8))]
-    DirReverseParent {
+    Unk40 {
         flag: u8,
         arg: u16,
     },
     #[br(magic(45u8))]
-    PlayAttackVoice {
+    Unk45 {
         flag: u8,
         arg: u16,
     },
@@ -292,7 +284,7 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(48u8))]
-    Unk48 {
+    AttackLevel {
         #[br(temp)]
         #[serde(skip)]
         rsrv: u8,
@@ -300,8 +292,6 @@ pub enum ScriptInstruction {
     },
     #[br(magic(49u8))]
     Goto {
-        #[br(temp)]
-        #[serde(skip)]
         flag: u8,
         #[br(temp)]
         #[serde(skip)]
@@ -359,6 +349,11 @@ pub enum ScriptInstruction {
         #[serde(skip)]
         arg: u16,
     },
+    #[br(magic(62u8))]
+    Unk62 {
+        flag: u8,
+        arg: u16,
+    },
     #[br(magic(63u8))]
     EnableCancelSecondary {
         flag: u8,
@@ -394,8 +389,11 @@ pub enum ScriptInstruction {
     Unk69 {
         flag: u8,
         arg: u16,
-        arg2: u16,
-        arg3: u16,
+    },
+    #[br(magic(70u8))]
+    Unk70 {
+        flag: u8,
+        arg: u16,
     },
     #[br(magic(71u8))]
     Unk71 {
@@ -409,7 +407,7 @@ pub enum ScriptInstruction {
         arg: u16,
     },
     #[br(magic(73u8))]
-    Unk73 {
+    ChipDamage {
         flag: u8,
         arg: u16,
     },
@@ -458,6 +456,11 @@ pub enum ScriptInstruction {
         flag: u8,
         arg: u16,
     },
+    #[br(magic(83u8))]
+    Unk83 {
+        flag: u8,
+        arg: u16,
+    },
     #[br(magic(84u8))]
     Pushback {
         flag: u8,
@@ -475,13 +478,43 @@ pub enum ScriptInstruction {
         buffered_act: u16,
         act_id: u16,
     },
+    #[br(magic(87u8))]
+    Unk87 {
+        flag: u8,
+        arg: u16,
+    },
+    #[br(magic(88u8))]
+    Unk88 {
+        flag: u8,
+        arg: u16,
+        arg2: u16,
+        arg3: u16,
+    },
     #[br(magic(89u8))]
     Unk89 {
         flag: u8,
         arg: u16,
     },
+    #[br(magic(90u8))]
+    Unk90 {
+        flag: u8,
+        arg: u16,
+        arg2: u16,
+        arg3: u16,
+    },
+    #[br(magic(91u8))]
+    Unk91 {
+        flag: u8,
+        arg: u16,
+        arg2: u32,
+    },
     #[br(magic(92u8))]
     JumpInstall {
+        flag: u8,
+        arg: u16,
+    },
+    #[br(magic(93u8))]
+    Unk93 {
         flag: u8,
         arg: u16,
     },
@@ -493,10 +526,11 @@ pub enum ScriptInstruction {
     },
     #[br(magic(95u8))]
     Unk95 {
-        flag: u8,
+        rsrv: u8,
         arg1: u16,
-        arg2: u16,
+        flag: u32,
         arg3: u16,
+        arg4: u16,
     },
     #[br(magic(96u8))]
     Unk96 {
@@ -504,6 +538,15 @@ pub enum ScriptInstruction {
         arg1: u16,
         arg2: u16,
         arg3: u16,
+    },
+    #[br(magic(97u8))]
+    Unk97 {
+        flag: u8,
+        arg1: u16,
+        arg2: u16,
+        arg3: u16,
+        arg4: u16,
+        arg5: u16,
     },
     #[br(magic(98u8))]
     Unk98 {
@@ -530,25 +573,19 @@ pub enum ScriptInstruction {
         unk3: u8,
         unk4: u8,
     },
+    #[br(magic(102u8))]
+    Unk102 {
+        flag: u8,
+        arg: u16,
+        arg2: u16,
+        arg3: u16,
+    },
     #[br(magic(103u8))]
     Unk103 {
         flag: u8,
         arg: u16,
-    },
-    #[br(magic(129u8))]
-    Unk129 {
-        flag: u8,
-        arg: u16,
-    },
-    #[br(magic(132u8))]
-    Unk132 {
-        flag: u8,
-        arg: u16,
-    },
-    #[br(magic(133u8))]
-    Unk133 {
-        flag: u8,
-        arg: u16,
+        arg2: u16,
+        arg3: u16,
     },
     #[br(magic(253u8))]
     ScriptEnd {
@@ -577,7 +614,7 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::MakeObj { flag, arg } => {
+            ScriptInstruction::Unk2 { flag, arg } => {
                 buffer.push(2);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
@@ -592,13 +629,15 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Shade { r, g, b } => {
+            ScriptInstruction::Unk5 { flag } => {
                 buffer.push(5);
-                buffer.push(*r);
-                buffer.push(*g);
-                buffer.push(*b);
+                buffer.push(*flag);
+                buffer.push(*flag);
+                for _ in 0..2 {
+                    buffer.push(0x0);
+                }
             }
-            ScriptInstruction::SemiTrans { flag, arg } => {
+            ScriptInstruction::Unk6 { flag, arg } => {
                 buffer.push(6);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
@@ -608,23 +647,27 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut stretch.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Rotation { flag, angle } => {
+            ScriptInstruction::PosZ { flag, depth: angle } => {
                 buffer.push(8);
                 buffer.push(*flag);
                 buffer.append(&mut angle.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Move { flag, x, y, priority } => {
+            ScriptInstruction::Unk9 { flag, arg } => {
                 buffer.push(9);
                 buffer.push(*flag);
-                buffer.append(&mut x.to_le_bytes().to_vec());
-                buffer.append(&mut y.to_le_bytes().to_vec());
-                buffer.append(&mut priority.to_le_bytes().to_vec());
+                buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::StopFrame { .. } => {
+            ScriptInstruction::Unk10 { flag, arg, arg2 } => {
+                buffer.push(10);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+                buffer.append(&mut arg2.to_le_bytes().to_vec());
+            }
+            ScriptInstruction::Unk11 { flag, arg, arg2 } => {
                 buffer.push(11);
-                for _ in 0..3 {
-                    buffer.push(0x0);
-                }
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+                buffer.append(&mut arg2.to_le_bytes().to_vec());
             }
             ScriptInstruction::DoNotCheckAttack { .. } => {
                 buffer.push(13);
@@ -658,8 +701,8 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk20 { flag, arg } => {
-                buffer.push(20);
+            ScriptInstruction::Unk19 { flag, arg } => {
+                buffer.push(19);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
@@ -702,6 +745,12 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.push(*random_factor);
             }
+            ScriptInstruction::Unk29 { data, flag, random_factor } => {
+                buffer.push(29);
+                buffer.push(*data);
+                buffer.push(*flag);
+                buffer.push(*random_factor);
+            }
             ScriptInstruction::EnemyGuardModeVoice { data, flag, random_factor } => {
                 buffer.push(30);
                 buffer.push(*data);
@@ -710,12 +759,6 @@ impl ScriptInstruction {
             }
             ScriptInstruction::EnemyDamageModeVoice { data, flag, random_factor } => {
                 buffer.push(31);
-                buffer.push(*data);
-                buffer.push(*flag);
-                buffer.push(*random_factor);
-            }
-            ScriptInstruction::AttackModeVoice { data, flag, random_factor } => {
-                buffer.push(32);
                 buffer.push(*data);
                 buffer.push(*flag);
                 buffer.push(*random_factor);
@@ -745,27 +788,17 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::JumpCell { flag, arg } => {
+            ScriptInstruction::Unk39 { flag, arg: z } => {
                 buffer.push(39);
                 buffer.push(*flag);
-                buffer.append(&mut arg.to_le_bytes().to_vec());
+                buffer.append(&mut z.to_le_bytes().to_vec());
             }
-            ScriptInstruction::PosZ { flag, z } => {
+            ScriptInstruction::Unk40 { flag, arg: z } => {
                 buffer.push(40);
                 buffer.push(*flag);
                 buffer.append(&mut z.to_le_bytes().to_vec());
             }
-            ScriptInstruction::DrawReverseParent { flag, arg } => {
-                buffer.push(41);
-                buffer.push(*flag);
-                buffer.append(&mut arg.to_le_bytes().to_vec());
-            }
-            ScriptInstruction::DirReverseParent { flag, arg } => {
-                buffer.push(42);
-                buffer.push(*flag);
-                buffer.append(&mut arg.to_le_bytes().to_vec());
-            }
-            ScriptInstruction::PlayAttackVoice { flag, arg } => {
+            ScriptInstruction::Unk45 { flag, arg } => {
                 buffer.push(45);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
@@ -775,14 +808,15 @@ impl ScriptInstruction {
                 buffer.push(0);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk48 { arg } => {
+            ScriptInstruction::AttackLevel { arg } => {
                 buffer.push(48);
                 buffer.push(0);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Goto { jump_target } => {
+            ScriptInstruction::Goto { flag, jump_target } => {
                 buffer.push(49);
-                for _ in 0..3 {
+                buffer.push(*flag);
+                for _ in 0..2 {
                     buffer.push(0x0);
                 }
                 buffer.append(&mut jump_target.to_le_bytes().to_vec());
@@ -835,6 +869,11 @@ impl ScriptInstruction {
                     buffer.push(0x0);
                 }
             }
+            ScriptInstruction::Unk62 { flag, arg } => {
+                buffer.push(62);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+            }
             ScriptInstruction::EnableCancelSecondary { flag, arg } => {
                 buffer.push(63);
                 buffer.push(*flag);
@@ -866,12 +905,15 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk69  { flag, arg, arg2, arg3 } => {
+            ScriptInstruction::Unk69  { flag, arg } => {
                 buffer.push(69);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
-                buffer.append(&mut arg2.to_le_bytes().to_vec());
-                buffer.append(&mut arg3.to_le_bytes().to_vec());
+            }
+            ScriptInstruction::Unk70  { flag, arg } => {
+                buffer.push(70);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
             }
             ScriptInstruction::Unk71 { flag, arg, arg2 } => {
                 buffer.push(71);
@@ -884,7 +926,7 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk73 { flag, arg } => {
+            ScriptInstruction::ChipDamage { flag, arg } => {
                 buffer.push(73);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
@@ -934,6 +976,11 @@ impl ScriptInstruction {
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
+            ScriptInstruction::Unk83 { flag, arg } => {
+                buffer.push(83);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+            }
             ScriptInstruction::Pushback { flag, magnitude } => {
                 buffer.push(84);
                 buffer.push(*flag);
@@ -951,13 +998,43 @@ impl ScriptInstruction {
                 buffer.append(&mut buffered_act.to_le_bytes().to_vec());
                 buffer.append(&mut act_id.to_le_bytes().to_vec());
             }
+            ScriptInstruction::Unk87 { flag, arg } => {
+                buffer.push(87);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+            }
+            ScriptInstruction::Unk88 { flag, arg, arg2, arg3 } => {
+                buffer.push(88);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+                buffer.append(&mut arg2.to_le_bytes().to_vec());
+                buffer.append(&mut arg3.to_le_bytes().to_vec());
+            }
             ScriptInstruction::Unk89 { flag, arg } => {
                 buffer.push(89);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
+            ScriptInstruction::Unk90 { flag, arg, arg2, arg3 } => {
+                buffer.push(90);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+                buffer.append(&mut arg2.to_le_bytes().to_vec());
+                buffer.append(&mut arg3.to_le_bytes().to_vec());
+            }
+            ScriptInstruction::Unk91 { flag, arg, arg2 } => {
+                buffer.push(91);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+                buffer.append(&mut arg2.to_le_bytes().to_vec());
+            }
             ScriptInstruction::JumpInstall { flag, arg } => {
                 buffer.push(92);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+            }
+            ScriptInstruction::Unk93 { flag, arg } => {
+                buffer.push(93);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
             }
@@ -967,12 +1044,13 @@ impl ScriptInstruction {
                 buffer.append(&mut arg.to_le_bytes().to_vec());
                 buffer.append(&mut arg2.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk95 { flag, arg1, arg2, arg3 } => {
+            ScriptInstruction::Unk95 { rsrv, arg1, flag, arg3, arg4 } => {
                 buffer.push(95);
-                buffer.push(*flag);
+                buffer.push(*rsrv);
                 buffer.append(&mut arg1.to_le_bytes().to_vec());
-                buffer.append(&mut arg2.to_le_bytes().to_vec());
+                buffer.append(&mut flag.to_le_bytes().to_vec());
                 buffer.append(&mut arg3.to_le_bytes().to_vec());
+                buffer.append(&mut arg4.to_le_bytes().to_vec());
             }
             ScriptInstruction::Unk96  { flag, arg1, arg2, arg3 } => {
                 buffer.push(96);
@@ -980,6 +1058,15 @@ impl ScriptInstruction {
                 buffer.append(&mut arg1.to_le_bytes().to_vec());
                 buffer.append(&mut arg2.to_le_bytes().to_vec());
                 buffer.append(&mut arg3.to_le_bytes().to_vec());
+            }
+            ScriptInstruction::Unk97 { flag, arg1, arg2, arg3, arg4, arg5 } => {
+                buffer.push(97);
+                buffer.push(*flag);
+                buffer.append(&mut arg1.to_le_bytes().to_vec());
+                buffer.append(&mut arg2.to_le_bytes().to_vec());
+                buffer.append(&mut arg3.to_le_bytes().to_vec());
+                buffer.append(&mut arg4.to_le_bytes().to_vec());
+                buffer.append(&mut arg5.to_le_bytes().to_vec());
             }
             ScriptInstruction::Unk98 { flag, arg } => {
                 buffer.push(98);
@@ -1008,27 +1095,21 @@ impl ScriptInstruction {
                 buffer.push(*unk3);
                 buffer.push(*unk4);
             }
-            ScriptInstruction::Unk103  { flag, arg } => {
+            ScriptInstruction::Unk102 { flag, arg, arg2, arg3 } => {
+                buffer.push(102);
+                buffer.push(*flag);
+                buffer.append(&mut arg.to_le_bytes().to_vec());
+                buffer.append(&mut arg2.to_le_bytes().to_vec());
+                buffer.append(&mut arg3.to_le_bytes().to_vec());
+            }
+            ScriptInstruction::Unk103 { flag, arg, arg2, arg3 } => {
                 buffer.push(103);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
+                buffer.append(&mut arg2.to_le_bytes().to_vec());
+                buffer.append(&mut arg3.to_le_bytes().to_vec());
             }
-            ScriptInstruction::Unk129  { flag, arg } => {
-                buffer.push(129);
-                buffer.push(*flag);
-                buffer.append(&mut arg.to_le_bytes().to_vec());
-            }
-            ScriptInstruction::Unk132  { flag, arg } => {
-                buffer.push(132);
-                buffer.push(*flag);
-                buffer.append(&mut arg.to_le_bytes().to_vec());
-            }
-            ScriptInstruction::Unk133  { flag, arg } => {
-                buffer.push(133);
-                buffer.push(*flag);
-                buffer.append(&mut arg.to_le_bytes().to_vec());
-            }
-            ScriptInstruction::ScriptEnd  { flag, arg } => {
+            ScriptInstruction::ScriptEnd { flag, arg } => {
                 buffer.push(253);
                 buffer.push(*flag);
                 buffer.append(&mut arg.to_le_bytes().to_vec());
