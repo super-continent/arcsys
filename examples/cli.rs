@@ -1,7 +1,4 @@
-use std::{
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::{fs, io::Write, path::{Path, PathBuf}};
 
 use anyhow::Result as AResult;
 use arcsys::{arcsys_filename_hash, ggacpr::replay::AcprReplay};
@@ -32,6 +29,11 @@ enum Type {
         #[command(subcommand)]
         format: PacType,
     },
+    /// Guilty Gear XX
+    Bin {
+        #[command(subcommand)]
+        format: BinType,
+    },
     /// Guilty Gear XX Accent Core +R
     Acpr {
         #[command(subcommand)]
@@ -61,6 +63,14 @@ enum PacType {
         action: FileAction,
     },
     Dfaspac {
+        #[command(subcommand)]
+        action: FileAction,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum BinType {
+    Obj {
         #[command(subcommand)]
         action: FileAction,
     },
@@ -105,7 +115,7 @@ fn run() -> AResult<()> {
         Type::Archive { format } => match format {
             PacType::Pac { action } => match action {
                 FileAction::Parse { args } => parse_pac(args),
-                FileAction::Rebuild { args: _ } => todo!(),
+                FileAction::Rebuild { args } => rebuild_pac(args),
             },
             PacType::Zcmp { action } => match action {
                 FileAction::Parse { args } => parse_zcmp(args),
@@ -116,6 +126,12 @@ fn run() -> AResult<()> {
                 FileAction::Rebuild { args: _ } => todo!(),
             },
         },
+        Type::Bin { format } => match format {
+            BinType::Obj { action } => match action {
+                FileAction::Parse { args } => parse_obj(args),
+                FileAction::Rebuild { args } => rebuild_obj(args),
+            }
+        }
         Type::Acpr { format } => match format {
             AcprType::Ggr { action } => match action {
                 FileAction::Parse { args } => parse_ggr(args),
@@ -134,7 +150,7 @@ fn run() -> AResult<()> {
                 let bytes = hex::decode(bytes)?;
                 println!(
                     "ArcSys filename hash of data: 0x{:X}",
-                    arcsys::arcsys_filename_hash(&bytes)
+                    arcsys_filename_hash(&bytes)
                 );
 
                 Ok(())
@@ -144,12 +160,50 @@ fn run() -> AResult<()> {
 }
 
 use std::fs::File;
+use std::io::BufReader;
+use arcsys::ggacpr::obj::{GGXXAudioArray, GGXXCellArray, GGXXCellEntry, GGXXObjBin, GGXXObjEntry, GGXXPaletteArray, GGXXPaletteEntry, GGXXPlayerEntry, GGXXSpriteArray};
+use arcsys::ggacpr::script::{GGXXObjScriptData, GGXXPlayerScriptData};
 
 fn parse_pac(args: FileActionArgs) -> AResult<()> {
     let pac = arcsys::pac::Pac::open(args.file_in)?;
 
     println!("{:X}: {:?}", pac.pac_style.bits(), pac.pac_style);
 
+    if let Some(out_path) = args.file_out {
+        for entry in pac.entries.iter()
+        {
+            write_file(out_path.join(entry.name().unwrap()), args.overwrite, &entry.contents)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn rebuild_pac(args: FileActionArgs) -> AResult<()> {
+    let mut entries: Vec<arcsys::pac::PacEntry> = Vec::new();
+    let player_cell_paths = fs::read_dir(args.file_in)?;
+
+    for path in player_cell_paths {
+        let path = path.unwrap();
+        let file = fs::read(path.path())?;
+        let entry = arcsys::pac::PacEntry::new_named(path.file_name().into_string().unwrap(), file);
+        entries.push(entry);
+    }
+    
+    let pac = arcsys::pac::Pac {
+        compression: arcsys::pac::Compression::None, 
+        pac_style: arcsys::pac::PacStyle::PATH_CUT | arcsys::pac::PacStyle::HASH_SORT | arcsys::pac::PacStyle::VERSION2,
+        entries
+    };
+    
+    if let Some(out_path) = args.file_out {
+        write_file(
+            out_path,
+            args.overwrite,
+            pac.to_bytes(),
+        )?;
+    }
+    
     Ok(())
 }
 
@@ -168,6 +222,242 @@ fn parse_dfasfpac(args: FileActionArgs) -> AResult<()> {
 
     if let Some(out_path) = args.file_out {
         write_file(out_path, args.overwrite, &pac.data)?;
+    }
+
+    Ok(())
+}
+
+fn parse_obj(args: FileActionArgs) -> AResult<()> {
+    let obj = GGXXObjBin::open(args.file_in)?;
+
+    if let Some(out_path) = args.file_out {
+        for (j, cell) in obj.player.cell_array.cell_entries.iter().enumerate() {
+            write_file(
+                out_path.join(format!("player/cells/cell_{}.json", j)),
+                args.overwrite,
+                serde_json::to_string_pretty(&cell)?.as_bytes(),
+            )?;
+        }
+        for (j, sprite) in obj.player.sprite_array.sprite_entries.iter().enumerate() {
+            write_file(
+                out_path.join(format!("player/sprites/sprite_{}.bin", j)),
+                args.overwrite,
+                sprite,
+            )?;
+        }
+
+        write_file(
+            out_path.join("player/script.json".to_string()),
+            args.overwrite,
+            serde_json::to_string_pretty(&obj.player.script_data)?.as_bytes(),
+        )?;
+
+        for (j, palette) in obj.player.palette_array.palette_entries.iter().enumerate() {
+            let mut palette_buffer: Vec<u8> = Vec::new();
+
+            palette_buffer.append(&mut palette.unk.to_le_bytes().to_vec());
+            palette_buffer.append(&mut palette.unk1.to_le_bytes().to_vec());
+            palette_buffer.append(&mut palette.unk2.to_le_bytes().to_vec());
+            palette_buffer.append(&mut palette.unk3.to_le_bytes().to_vec());
+            palette_buffer.append(&mut palette.unk4.to_le_bytes().to_vec());
+            palette_buffer.append(&mut palette.unk5.to_le_bytes().to_vec());
+            palette_buffer.append(&mut palette.unk6.to_le_bytes().to_vec());
+            palette_buffer.append(&mut palette.unk7.to_le_bytes().to_vec());
+
+            for color in palette.palette.iter() {
+                palette_buffer.append(&mut color.to_le_bytes().to_vec());
+            }
+
+            write_file(
+                out_path.join(format!("palettes/pal_{}.bin", j)),
+                args.overwrite,
+                palette_buffer,
+            )?;
+        }
+
+        for (i, game_object) in obj.objects.iter().enumerate() {
+            for (j, cell) in game_object.cell_array.cell_entries.iter().enumerate() {
+                write_file(
+                    out_path.join(format!("objno{}/cells/cell_{}.json", i, j)),
+                    args.overwrite,
+                    serde_json::to_string_pretty(&cell)?.as_bytes(),
+                )?;
+            }
+            for (j, sprite) in game_object.sprite_array.sprite_entries.iter().enumerate() {
+                write_file(
+                    out_path.join(format!("objno{}/sprites/sprite_{}.bin", i, j)),
+                    args.overwrite,
+                    sprite,
+                )?;
+            }
+
+            write_file(
+                out_path.join(format!("objno{}/script.json", i)),
+                args.overwrite,
+                serde_json::to_string_pretty(&game_object.script_data)?.as_bytes(),
+            )?;
+        }
+
+        for (j, audio) in obj.audio_array.audio_entries.iter().enumerate() {
+            write_file(
+                out_path.join(format!("player/audio/audio_{}.vag", j)),
+                args.overwrite,
+                audio,
+            )?;
+        }
+    }
+
+    Ok(())
+}
+
+fn rebuild_obj(args: FileActionArgs) -> AResult<()> {
+    let mut player_cell_entries: Vec<GGXXCellEntry> = Vec::new();
+    let player_cell_paths = fs::read_dir(args.file_in.join("player/cells"))?;
+
+    let mut player_cell_index: usize = 0;
+
+    for _ in player_cell_paths {
+        let file = File::open(args.file_in.join(format!("player/cells/cell_{}.json", player_cell_index)))?;
+        let reader = BufReader::new(file);
+        let cell: GGXXCellEntry = serde_json::from_reader(reader)?;
+        player_cell_entries.push(cell);
+        player_cell_index += 1;
+    }
+
+    let player_cell_array = GGXXCellArray {
+        data_offset: 0,
+        cell_entries: player_cell_entries,
+    };
+
+    let mut player_sprite_entries: Vec<Vec<u8>> = Vec::new();
+    let player_sprite_paths = fs::read_dir(args.file_in.join("player/sprites"))?;
+
+    let mut player_sprite_index: usize = 0;
+
+    for _ in player_sprite_paths {
+        let buffer = fs::read(args.file_in.join(format!("player/sprites/sprite_{}.bin", player_sprite_index)))?;
+
+        player_sprite_entries.push(buffer);
+        player_sprite_index += 1;
+    }
+
+    let player_sprite_array = GGXXSpriteArray {
+        sprite_entries: player_sprite_entries,
+    };
+
+    let player_script_file = File::open(args.file_in.join("player/script.json"))?;
+    let player_script_reader = BufReader::new(player_script_file);
+    let player_script: GGXXPlayerScriptData = serde_json::from_reader(player_script_reader)?;
+
+    let mut player_palette_entries: Vec<GGXXPaletteEntry> = Vec::new();
+    let player_palette_paths = fs::read_dir(args.file_in.join("palettes"))?;
+
+    let mut player_palette_index: usize = 0;
+
+    for _ in player_palette_paths {
+        let palette = GGXXPaletteEntry::open(args.file_in.join(format!("palettes/pal_{}.bin", player_palette_index)))?;
+        player_palette_entries.push(palette);
+        player_palette_index += 1;
+    }
+
+    let player_palette_array = GGXXPaletteArray {
+        data_offset: 0,
+        palette_entries: player_palette_entries,
+    };
+
+    let player = GGXXPlayerEntry {
+        data_offset: 0,
+        cell_array: player_cell_array,
+        sprite_array: player_sprite_array,
+        script_data: player_script,
+        palette_array: player_palette_array,
+    };
+
+    let obj_paths: Vec<PathBuf> = fs::read_dir(&args.file_in)?
+        .into_iter()
+        .filter(|r| r.is_ok())
+        .map(|r| r.unwrap().path())
+        .filter(|r| r.is_dir() && r.to_str().unwrap().contains("objno"))
+        .collect();
+
+    let mut obj_vec: Vec<GGXXObjEntry> = Vec::new();
+
+    for path in obj_paths {
+        let mut obj_cell_entries: Vec<GGXXCellEntry> = Vec::new();
+        let obj_cell_paths = fs::read_dir(path.join("cells"))?;
+
+        let mut obj_cell_index: usize = 0;
+
+        for _ in obj_cell_paths {
+            let file = File::open(path.join(format!("cells/cell_{}.json", obj_cell_index)))?;
+            let reader = BufReader::new(file);
+            let cell: GGXXCellEntry = serde_json::from_reader(reader)?;
+            obj_cell_entries.push(cell);
+            obj_cell_index += 1;
+        }
+
+        let obj_cell_array = GGXXCellArray {
+            data_offset: 0,
+            cell_entries: obj_cell_entries,
+        };
+
+        let mut obj_sprite_entries: Vec<Vec<u8>> = Vec::new();
+        let obj_sprite_paths = fs::read_dir(path.join("sprites"))?;
+
+        let mut obj_sprite_index: usize = 0;
+
+        for _ in obj_sprite_paths {
+            let buffer = fs::read(path.join(format!("sprites/sprite_{}.bin", obj_sprite_index)))?;
+
+            obj_sprite_entries.push(buffer);
+            obj_sprite_index += 1;
+        }
+        let obj_sprite_array = GGXXSpriteArray {
+            sprite_entries: obj_sprite_entries,
+        };
+
+        let obj_script_file = File::open(path.join("script.json"))?;
+        let obj_script_reader = BufReader::new(obj_script_file);
+        let obj_script: GGXXObjScriptData = serde_json::from_reader(obj_script_reader)?;
+
+        let obj = GGXXObjEntry {
+            data_offset: 0,
+            cell_array: obj_cell_array,
+            sprite_array: obj_sprite_array,
+            script_data: obj_script,
+        };
+
+        obj_vec.push(obj);
+    }
+
+    let mut audio_entries: Vec<Vec<u8>> = Vec::new();
+    let audio_paths = fs::read_dir(args.file_in.join("player/audio"))?;
+
+    let mut audio_index: usize = 0;
+
+    for _ in audio_paths {
+        let buffer = fs::read(args.file_in.join(format!("player/audio/audio_{}.vag", audio_index)))?;
+
+        audio_entries.push(buffer);
+        audio_index += 1;
+    }
+
+    let audio_array = GGXXAudioArray {
+        audio_entries,
+    };
+
+    let obj = GGXXObjBin {
+        player,
+        objects: obj_vec,
+        audio_array,
+    };
+
+    if let Some(out_path) = args.file_out {
+        write_file(
+            out_path,
+            args.overwrite,
+            obj.to_bytes(),
+        )?;
     }
 
     Ok(())
@@ -196,6 +486,7 @@ fn write_file(out_path: impl AsRef<Path>, overwrite: bool, data: impl AsRef<[u8]
         ));
     }
 
+    fs::create_dir_all(out_path.parent().unwrap())?;
     File::create(out_path)?.write_all(data.as_ref())?;
 
     Ok(())

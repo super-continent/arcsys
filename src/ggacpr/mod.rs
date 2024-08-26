@@ -1,3 +1,6 @@
+pub mod obj;
+pub mod script;
+
 pub mod replay {
     use std::io::Read;
 

@@ -1,4 +1,5 @@
 //! Types that allow easy parsing and rebuilding of various Arc System Works file formats.
+#![feature(seek_stream_len)]
 
 mod error;
 mod helpers;
