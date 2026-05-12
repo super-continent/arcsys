@@ -44,13 +44,12 @@ pub struct HitBox {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Rect {
-    x_offset: f32,
-    y_offset: f32,
-    width: f32,
-    height: f32,
+    pub x_offset: f32,
+    pub y_offset: f32,
+    pub width: f32,
+    pub height: f32,
 }
 
-const BOX_LAYER_COUNT: usize = 0x2C;
 fn parse_jonbin_impl(i: &[u8]) -> IResult<&[u8], GGSTJonBin> {
     let (i, _) = tag(GGSTJonBin::MAGIC_JONB)(i)?;
 
@@ -69,8 +68,12 @@ fn parse_jonbin_impl(i: &[u8]) -> IResult<&[u8], GGSTJonBin> {
     // dbg!(editor_data_count);
     // dbg!(hurtbox_count);
     // dbg!(hitbox_count);
+    let box_layer_count = match version {
+        ..=277 => 0x2C, // versions prior to 277 have not been observed, but we shall assume they are the same as 277 itself
+        278.. => 0x2D, // battle version 5.00 as the earliest
+    };
 
-    let (i, mut box_layer_sizes) = count(le_u16, BOX_LAYER_COUNT)(i)?;
+    let (i, mut box_layer_sizes) = count(le_u16, box_layer_count)(i)?;
 
     let (i, editor_data) = count(parse_editor_data, editor_data_count as usize)(i)?;
 
