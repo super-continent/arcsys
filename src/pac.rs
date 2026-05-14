@@ -231,7 +231,7 @@ struct InternalPac {
     file_count: u32,
     #[br(map = |x: u32| PacStyle::from_bits_retain(x))]
     pub pac_style: PacStyle,
-    #[br(temp, align_after = 0x10, dbg)]
+    #[br(temp, align_after = 0x10)]
     string_size: u32,
     #[br(args {
         count: file_count as usize,
